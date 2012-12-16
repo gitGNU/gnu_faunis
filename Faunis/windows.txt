@@ -1,0 +1,23 @@
+Copyright 2012 Simon Ley alias "skarute"
+This documentation is published under the GNU Free Documentation
+License v1.3 or later. You can find a copy of this license in
+"fdl-1.3.txt" or at <http://www.gnu.org/licenses/>.
+
+########################################
+Notes for Windows users
+########################################
+
+Line Feed Problem: If you can't read the various text files of Faunis because of line feeds shown incorrectly, try opening them with WordPad instead of Notepad.
+
+Windows users without "eclipse" and "make" may execute these commands from the Makefile in the command prompt:
+To compile:
+javac -sourcepath ./src/ -cp ./bin/ -d ./bin/ ./src/client/Client.java
+javac -sourcepath ./src/ -cp ./bin/ -d ./bin/ ./src/server/MainServer.java
+To run:
+java -ea -cp ./bin/ client/Client
+java -ea -cp ./bin/ server/Server
+Remember to put the path of javac.exe and java.exe in your PATH environment variable, otherwise the "javac" and "java" commands may not be recognised. For javac.exe, this might look like "C:\Program Files\Java\JDK 6\bin", though the exact path depends on where you installed the JDK.
+
+---------------------------------------
+The creator of Faunis recommends you to use free software and a free operating system. :o]
+Read more about it here: http://www.fsf.org/about/what-is-free-software
