@@ -48,6 +48,7 @@ import communication.movement.Path;
 public class MainServer {
 	private ServerSettings serverSettings;
 	private Reception reception;
+	private InventoryManager invMan;
 	private List<Butler> butlers;	// To avoid deadlocks, these resources have to
 									// be always locked from top to bottom
 	private HashMap<String, Butler> accnameToButler;
@@ -105,10 +106,21 @@ public class MainServer {
 		synchronized(mapnameToMapman) {
 			this.mapnameToMapman.put(starterRegion, starterMapman);
 		}
+		
+		//
+		invMan = new InventoryManager(this);
 	}
 	
 	public ServerSettings getServerSettings() {
 		return serverSettings;
+	}
+	
+	public InventoryManager getInvMan(){
+		return invMan;
+	}
+	
+	public String getAccountLocation(){
+		return serverSettings.accountPath();
 	}
 	
 	public GraphicsContentManager getGraphicsContentManager() {

@@ -18,6 +18,7 @@
  */
 package server;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -25,12 +26,18 @@ import java.net.Socket;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
+import server.butlerToInvmanOrders.BIAccessInventoryOrder;
+import server.butlerToInvmanOrders.BIOrder;
+import server.butlerToInvmanOrders.BISetPlayerItemFileOrder;
+import server.butlerToInvmanOrders.BIUnsetPlayerItemFileOrder;
 import server.butlerToMapmanOrders.*;
+import server.invmanToButlerOrders.IBOrder;
 import server.mapmanToButlerOrders.*;
 import communication.butlerToClientOrders.*;
 import communication.clientToButlerOrders.*;
 import communication.enums.CharacterClass;
 import communication.enums.ClientStatus;
+import communication.enums.InventoryType;
 
 
 /** The butler looks after the needs of a client.
@@ -49,7 +56,9 @@ public class Butler {
 	protected Account loggedAccount;		// Account, unter dem der Client gerade eingeloggt ist (kann auch null sein)
 	protected Player activePlayer;
 	protected MapManager activeMapman;
+	protected InventoryManager invMan;
 	protected BlockingQueue<MBOrder> serverOrders;
+	protected BlockingQueue<IBOrder> invmanservOrders;
 	private Thread serverThread; // steadily observes and handles the requests from server side
 	private ServerRunnable serverRunnable; // the job of serverThread
 	
@@ -60,6 +69,7 @@ public class Butler {
 		this.parent = parent;
 		this.clientSocket = clientSocket;
 		this.serverOrders = new ArrayBlockingQueue<MBOrder>(50);
+		this.invMan = parent.getInvMan();
 		
 		// create input and output streams from clientSocket
 		System.out.println("Butler: Try to create input / output streams...");
@@ -179,6 +189,13 @@ public class Butler {
 		assert(activeMapman == null);
 		activeMapman = parent.getMapman(mapname);
 		addPlayerToMapman(activeMapman, false);
+		//Add player to InvMan
+		File itemFile = new File(parent.getAccountLocation() 
+				+ loggedAccount.getName() + File.separator
+				+ "players" + File.separator
+				+ playerName + File.separator
+				+ "items");
+		sendOrderToInvMan(new BISetPlayerItemFileOrder(playerName, itemFile, this));
 		// => the mapman will send a MBMapInfoOrder
 		// to the butler who passes it on to the client
 		sendOrderToClient(new BCSetClientStatusOrder(ClientStatus.exploring));
@@ -201,6 +218,7 @@ public class Butler {
 	}
 	
 	public void unloadActivePlayer() {
+		sendOrderToInvMan(new BIUnsetPlayerItemFileOrder(activePlayer.getName(), this)); //Called first before removing any of the info below
 		if (!assertLoggedAccount()) return;
 		if (!assertActivePlayer()) return;
 		assert(activeMapman != null);
@@ -341,6 +359,15 @@ public class Butler {
 			System.out.println("CBServerSourceOrder");
 			sendOrderToClient(new BCSystemMessageOrder(
 				"Server source code at "+parent.getServerSettings().serverSourceAt()));
+		} else if (read instanceof CBAccessInventoryOrder){
+			//Strips order to convert to BIOrder
+			InventoryType invType = ((CBAccessInventoryOrder) read).getInvType();
+			String playerName =  ((CBAccessInventoryOrder) read).getPlayerName();
+			String otherPlayerName = ((CBAccessInventoryOrder) read).getOtherPlayerName();
+			int itemID = ((CBAccessInventoryOrder) read).getItemID();
+			int qnt = ((CBAccessInventoryOrder) read).getQnt();
+			BIAccessInventoryOrder newOrder = new BIAccessInventoryOrder(invType, playerName, otherPlayerName, itemID, qnt, this);
+			sendOrderToInvMan(newOrder);
 		}
 	}
 	
@@ -421,6 +448,10 @@ public class Butler {
 				System.out.println("Butler: Couldn't pass order to client!");
 			}
 		}
+	}
+	
+	private void sendOrderToInvMan(BIOrder order){
+		invMan.orders.add(order);
 	}
 	
 	private void clientChatMessage(MBChatMessageOrder order) {

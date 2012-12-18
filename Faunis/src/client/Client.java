@@ -37,6 +37,7 @@ import communication.butlerToClientOrders.*;
 import communication.clientToButlerOrders.*;
 import communication.enums.AniEndType;
 import communication.enums.ClientStatus;
+import communication.enums.InventoryType;
 import communication.movement.Moveable;
 import communication.movement.Mover;
 import communication.movement.MoverManager;
@@ -659,7 +660,34 @@ public class Client implements MoverManager, AnimatorManager {
 		} else if (commandPrefix.equals("/s")) {
 			sendOrder(new CBServerSourceOrder());
 			return true;
-		} else {
+		}
+		
+		else if(commandPrefix.equals("/inv") && (commandSplitDetails.length == 4 || commandSplitDetails.length == 3 || commandSplitDetails.length == 1)){
+			if(commandSplitDetails[0].toUpperCase().equals("VIEW")){
+				sendOrder(new CBAccessInventoryOrder(InventoryType.VIEW, activePlayerName));
+			}else if(commandSplitDetails[0].toUpperCase().equals("ADD") && (commandSplitDetails.length == 3)){
+				try{
+					int itemID = Integer.parseInt(commandSplitDetails[1]);
+					int qnt = Integer.parseInt(commandSplitDetails[2]);
+					sendOrder(new CBAccessInventoryOrder(InventoryType.ADD, activePlayerName, itemID, qnt));
+				}catch(NumberFormatException e){
+					logErrorMessage("Error while parsing the numbers.");
+					return false;
+				}
+			}else if(commandSplitDetails[0].toUpperCase().equals("THROW") && (commandSplitDetails.length == 3)){
+				try{
+					int itemID = Integer.parseInt(commandSplitDetails[1]);
+					int qnt = Integer.parseInt(commandSplitDetails[2]);
+					sendOrder(new CBAccessInventoryOrder(InventoryType.THROW, activePlayerName, itemID, qnt));
+				}catch(NumberFormatException e){
+					logErrorMessage("Error while parsing the numbers.");
+					return false;
+				}
+			}
+			return true;
+		}
+		
+		else {
 			logErrorMessage("Command couldn't be interpreted.");
 			return false;
 		}
