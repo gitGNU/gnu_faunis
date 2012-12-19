@@ -1,15 +1,13 @@
 package server.butlerToInvmanOrders;
 
-import java.io.File;
-
 import server.Butler;
 
 public class BISetPlayerItemFileOrder extends BIOrder{
 
 	private String playerName;
-	private File playerFile;
+	private String playerFile;
 	
-	public BISetPlayerItemFileOrder(String playerName, File playerFile, Butler source) {
+	public BISetPlayerItemFileOrder(String playerName, String playerFile, Butler source) {
 		super(source);
 		this.playerName = playerName;
 		this.playerFile = playerFile;
@@ -19,7 +17,7 @@ public class BISetPlayerItemFileOrder extends BIOrder{
 		return this.playerName;
 	}
 	
-	public File getPlayerFile(){
+	public String getPlayerFile(){
 		return this.playerFile;
 	}
 }

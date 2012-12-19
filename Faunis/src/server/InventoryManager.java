@@ -12,7 +12,6 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
 import javax.swing.JFrame;
-import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
 
@@ -20,16 +19,19 @@ import server.butlerToInvmanOrders.BIAccessInventoryOrder;
 import server.butlerToInvmanOrders.BIOrder;
 import server.butlerToInvmanOrders.BISetPlayerItemFileOrder;
 import server.butlerToInvmanOrders.BIUnsetPlayerItemFileOrder;
+import server.invmanToButlerOrders.IBSendErrorMessageOrder;
+import server.invmanToButlerOrders.IBSendInventoryOrder;
 
 import communication.enums.InventoryType;
 
 /** This manages inventory commands, such as: ADD, GIVE, THROW, VIEW, USE*/
 public class InventoryManager {
+	@SuppressWarnings("unused")
 	private MainServer parent;
 	private Thread thread;
 	private Runnable runnable;
 	protected BlockingQueue<BIOrder> orders;
-	private HashMap<String, File> playerItems;
+	private HashMap<String, String> playerItems;
 
 	private JFrame frame;
 	private JTextPane area;
@@ -49,10 +51,13 @@ public class InventoryManager {
 			spane.setSize(350, 200);
 			frame.add(spane);
 			frame.setSize(400, 250);
+			frame.setLocation(850, 0);
+			frame.setResizable(false);
+			frame.setAlwaysOnTop(true);
 			frame.setVisible(true);
 		}
 		this.parent = parent;
-		this.playerItems = new HashMap<String, File>();
+		this.playerItems = new HashMap<String, String>();
 		orders = new ArrayBlockingQueue<BIOrder>(50);
 		runnable = new InvManRunnable(this);
 		thread = new Thread(runnable);
@@ -99,13 +104,15 @@ public class InventoryManager {
 			//TODO This task may or maynot be used by PathMan
 			break;
 		case GIVE:
+			giveItem(playerName, otherPlayerName, itemID, qnt, order.getSource());
 			break;
 		case THROW:
-			throwItem(playerName, itemID, qnt);
+			throwItem(playerName, itemID, qnt, order.getSource());
 			break;
 		case USE:
 			break;
 		case VIEW:
+			order.getSource().put(new IBSendInventoryOrder(readFile(playerName)));
 			break;
 		default:
 			break;
@@ -113,7 +120,60 @@ public class InventoryManager {
 		}
 	}
 
-	private void throwItem(String playerName, int itemID, int qnt) {
+	
+	private void giveItem(String playerName, String otherPlayerName, int itemID, int qnt, Butler source) {
+		logMessageLn("Other player [" + otherPlayerName + "] status: " + this.playerItems.containsKey(otherPlayerName));
+		//Checks giving player's command to be correct
+		if(playerName.equals(otherPlayerName)){
+			source.put(new IBSendErrorMessageOrder("Cannot give items to yourself"));
+			return;
+		}
+		if(this.playerItems.containsKey(otherPlayerName)){
+			HashMap<Integer, Integer> playerItems = readFile(playerName);
+			HashMap<Integer, Integer> otherPlayerItems = readFile(otherPlayerName);
+			
+			if(playerItems.containsKey(itemID)){ //Makes sure that something is to be given
+			
+				int playerItemQnt = playerItems.get(itemID);
+				int otherPlayerItemQnt = 0;
+				if(otherPlayerItems.containsKey((itemID))) otherPlayerItemQnt = otherPlayerItems.get(itemID);
+				
+				int newPlayerItemQnt = playerItemQnt - qnt;
+				int newOtherPlayerItemQnt;
+				boolean allowWrite = false;
+				
+				if(newPlayerItemQnt > 0){ //The player has more than than what is to be given	
+					playerItems.put(itemID, newPlayerItemQnt);
+					allowWrite = true;
+				}else if(newPlayerItemQnt == 0){ //The player exhausted this item
+					playerItems.remove(itemID);
+					allowWrite = true;
+				}else{ //The player doesn't have enough to give
+					source.put(new IBSendErrorMessageOrder("Cannot give items more than you have"));
+					allowWrite = false;
+				}
+				
+				if(allowWrite){ //Writes items file
+					newOtherPlayerItemQnt = otherPlayerItemQnt + qnt;
+					otherPlayerItems.put(itemID, newOtherPlayerItemQnt);
+					
+					writeFile(this.playerItems.get(playerName), playerItems);
+					writeFile(this.playerItems.get(otherPlayerName), otherPlayerItems);
+					
+					logMessageLn("Give command successful");
+				}
+				
+			}else{
+				source.put(new IBSendErrorMessageOrder("Cannot give items you don't have"));
+			}
+		}else{
+			source.put(new IBSendErrorMessageOrder("Player [" + otherPlayerName +"] unavailable"));
+		}
+		
+	}
+	
+	/** Throws item*/
+	private void throwItem(String playerName, int itemID, int qnt, Butler source) {
 		logMessageLn("throwItem method invoked by [" + playerName + "]: (" + itemID + ", " + qnt + ")");
 		HashMap<Integer, Integer> hashmap = readFile(playerName);
 		if(hashmap.containsKey(itemID)){ //Therefore the itemID is throwable
@@ -123,23 +183,26 @@ public class InventoryManager {
 			if(newQnt > 0){ //Catches non-negative quantity
 				logMessageLn("\tAssessed new value: " + newQnt);
 				hashmap.put(itemID, newQnt);
+				logMessageLn("\tHashMap Val: " + hashmap.get(itemID));
 			}
 			else if(newQnt == 0){
 				logMessageLn("\tAssessed new value: [Delete]");
 				hashmap.remove(itemID);
 			}else{
 				logMessageLn("\tCannot invoke change, Qnt negates");
+				source.put(new IBSendErrorMessageOrder("Cannot throw item more than you have"));
 			}
-			writeFile(playerItems.get(playerItems), hashmap);
+			writeFile(playerItems.get(playerName), hashmap);
 		}else{
 			logMessageLn("\tItem not found for user [" + playerName + "]");
+			source.put(new IBSendErrorMessageOrder("Cannot throw item that you don't have"));
 		}
 	}
 
 	/** Sets player items file into the InvMan active HashMaps*/
 	private void registerPlayerFile(BISetPlayerItemFileOrder order) {
 		String playerName = order.getPlayerName();
-		File playerFile = order.getPlayerFile();
+		String playerFile = order.getPlayerFile();
 		logMessage("Checking " + playerName + " items file... ");
 		checkFileIntegrity(playerFile);
 		this.playerItems.put(playerName, playerFile);
@@ -149,7 +212,8 @@ public class InventoryManager {
 	}
 
 	/** Checks whether a items file is present in Player's directory*/
-	private void checkFileIntegrity(File playerFile){
+	private void checkFileIntegrity(String playerFilename){
+		File playerFile = new File(playerFilename);
 		if(!(playerFile.exists())){
 			logMessageLn("Not present!");
 			logMessage("\tCreating file... ");
@@ -162,38 +226,45 @@ public class InventoryManager {
 				logMessageLn("Error!");
 			}
 			HashMap<Integer, Integer> playerInventory = new HashMap<Integer, Integer>();
-			writeFile(playerFile, playerInventory);
+			writeFile(playerFilename, playerInventory);
 		}else{
 			logMessageLn("Present! "+playerFile.getPath());
 		}
+		playerFile = null;
 	}
 	
 	/** Writes items files*/
-	private void writeFile(File playerFile, HashMap<Integer, Integer> playerInventory){
-			FileOutputStream out;
-			ObjectOutputStream objOut;
-			try {
-				out = new FileOutputStream(playerFile);
-				objOut = new ObjectOutputStream(out);
-				objOut.writeObject(playerInventory);
-				objOut.flush();
-				objOut.close();
-			} catch (FileNotFoundException e) {
-				e.printStackTrace();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+	private void writeFile(String playerFilename, HashMap<Integer, Integer> playerInventory){
+		File playerFile = new File(playerFilename);
+		logMessageLn("Writing: " + playerFile.getAbsolutePath());
+		FileOutputStream out;
+		ObjectOutputStream objOut;
+		try {
+			out = new FileOutputStream(playerFile);
+			objOut = new ObjectOutputStream(out);
+			objOut.writeObject(playerInventory);
+			objOut.flush();
+			objOut.close();
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		playerFile = null;
 	}
 	
 	/** Converts playerName into HashMap<Integer, Integer>*/
+	@SuppressWarnings("unchecked")
 	private HashMap<Integer, Integer> readFile(String playerName){
 		logMessageLn("readFile [" + playerName + "]");
 		HashMap<Integer, Integer> container = new HashMap<Integer, Integer>();
 		try {
-			FileInputStream input = new FileInputStream(playerItems.get(playerName));
+			File playerFile = new File(playerItems.get(playerName));
+			FileInputStream input = new FileInputStream(playerFile);
 			ObjectInputStream objIn = new ObjectInputStream(input);
 			container = (HashMap<Integer, Integer>) objIn.readObject();
 			objIn.close();
+			playerFile = null;
 			logMessageLn("readFile successful!");
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
@@ -208,6 +279,7 @@ public class InventoryManager {
 		return container;
 	}
 	
+	/** My runnable instance*/
 	private class InvManRunnable implements Runnable{
 		private InventoryManager myInvMan;
 		

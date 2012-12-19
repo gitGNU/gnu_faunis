@@ -360,10 +360,24 @@ public class Client implements MoverManager, AnimatorManager {
 			logSystemMessage((BCSystemMessageOrder) order);
 		} else if (order instanceof BCChatMessageOrder) {
 			showChatMessage((BCChatMessageOrder) order);
-		} else {
+		} 
+		
+		else if(order instanceof BCSendInventoryOrder){
+			showInventory((BCSendInventoryOrder) order);
+		}
+		
+		else {
 			System.out.println("Received unknown server order!");
 		}
 		// TODO: Implement the handling of further server orders
+	}
+	
+	public void showInventory(BCSendInventoryOrder order){
+		HashMap<Integer, Integer> hashmap = order.getPlayerItems();
+		if(hashmap.isEmpty()) logSystemMessage("You don't have any items on your inventory");
+		else{
+			new InventoryWindow(win, hashmap);
+		}
 	}
 	
 	public void showChatMessage(BCChatMessageOrder order) {
@@ -679,6 +693,15 @@ public class Client implements MoverManager, AnimatorManager {
 					int itemID = Integer.parseInt(commandSplitDetails[1]);
 					int qnt = Integer.parseInt(commandSplitDetails[2]);
 					sendOrder(new CBAccessInventoryOrder(InventoryType.THROW, activePlayerName, itemID, qnt));
+				}catch(NumberFormatException e){
+					logErrorMessage("Error while parsing the numbers.");
+					return false;
+				}
+			}else if(commandSplitDetails[0].toUpperCase().equals("GIVE") && (commandSplitDetails.length == 4)){
+				try{
+					int itemID = Integer.parseInt(commandSplitDetails[2]);
+					int qnt = Integer.parseInt(commandSplitDetails[3]);
+					sendOrder(new CBAccessInventoryOrder(InventoryType.GIVE, activePlayerName, commandSplitDetails[1], itemID, qnt));
 				}catch(NumberFormatException e){
 					logErrorMessage("Error while parsing the numbers.");
 					return false;

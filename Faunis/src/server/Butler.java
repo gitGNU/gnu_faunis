@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.util.HashMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -32,6 +33,8 @@ import server.butlerToInvmanOrders.BISetPlayerItemFileOrder;
 import server.butlerToInvmanOrders.BIUnsetPlayerItemFileOrder;
 import server.butlerToMapmanOrders.*;
 import server.invmanToButlerOrders.IBOrder;
+import server.invmanToButlerOrders.IBSendErrorMessageOrder;
+import server.invmanToButlerOrders.IBSendInventoryOrder;
 import server.mapmanToButlerOrders.*;
 import communication.butlerToClientOrders.*;
 import communication.clientToButlerOrders.*;
@@ -57,11 +60,16 @@ public class Butler {
 	protected Player activePlayer;
 	protected MapManager activeMapman;
 	protected InventoryManager invMan;
+	
+	//MapMan's Variables
 	protected BlockingQueue<MBOrder> serverOrders;
-	protected BlockingQueue<IBOrder> invmanservOrders;
 	private Thread serverThread; // steadily observes and handles the requests from server side
 	private ServerRunnable serverRunnable; // the job of serverThread
 	
+	//InvMan's Variables
+	protected BlockingQueue<IBOrder> invmanOrders;
+	private Thread invmanThread;
+	private InvManRunnable invManRunnable;
 	
 	public Butler(MainServer parent, Socket clientSocket){
 		this.shutdownMutexKey = new Object();
@@ -69,6 +77,7 @@ public class Butler {
 		this.parent = parent;
 		this.clientSocket = clientSocket;
 		this.serverOrders = new ArrayBlockingQueue<MBOrder>(50);
+		this.invmanOrders = new ArrayBlockingQueue<IBOrder>(50); //Added
 		this.invMan = parent.getInvMan();
 		
 		// create input and output streams from clientSocket
@@ -90,6 +99,10 @@ public class Butler {
 		this.serverRunnable = new ServerRunnable(this);
 		this.serverThread = new Thread(this.serverRunnable);
 		this.serverThread.start();
+		//create and start invManThread
+		this.invManRunnable = new InvManRunnable(this);
+		this.invmanThread = new Thread(this.invManRunnable);
+		this.invmanThread.start();
 	}
 	
 	public boolean assertActivePlayer() {
@@ -190,7 +203,7 @@ public class Butler {
 		activeMapman = parent.getMapman(mapname);
 		addPlayerToMapman(activeMapman, false);
 		//Add player to InvMan
-		File itemFile = new File(parent.getAccountLocation() 
+		String itemFile = new String(parent.getAccountLocation() 
 				+ loggedAccount.getName() + File.separator
 				+ "players" + File.separator
 				+ playerName + File.separator
@@ -490,5 +503,53 @@ public class Butler {
 	
 	private void sendErrorMessage(String errorMessage) {
 		sendOrderToClient(new BCErrorMessageOrder(errorMessage));
+	}
+	
+	// #################################################################################
+	// Invman -> Butler -> Client side:
+	// #################################################################################	
+	public void put(IBOrder order) {
+		try {
+			invmanOrders.put(order);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+			throw new RuntimeException("Couldn't pass server order to the butler!");
+		}
+	}
+	
+	
+	// job of serverThread
+	private class InvManRunnable implements Runnable {
+		private Butler myButler;
+		public InvManRunnable(Butler parent) {
+			this.myButler = parent;
+		}
+		@Override
+		public void run() {
+			// Handle queries lying in serverOrders
+			IBOrder order;
+			while (!stopRunning) {
+				order = null;
+				try {
+					order = myButler.invmanOrders.take();
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				if (order != null)
+					myButler.handleInvManOrder(order);
+			}
+		}
+	}
+	
+	protected void handleInvManOrder(IBOrder order) {
+		if(order instanceof IBSendInventoryOrder){
+			//Strips IBSendInventoryOrder and rebuild as BCSendInventoryOrder
+			HashMap<Integer, Integer> playerItems = ((IBSendInventoryOrder) order).getPlayerItems();
+			BCSendInventoryOrder newOrder = new BCSendInventoryOrder(playerItems);
+			sendOrderToClient(newOrder);
+		}else if(order instanceof IBSendErrorMessageOrder){
+			IBSendErrorMessageOrder newOrder = (IBSendErrorMessageOrder) order;
+			sendErrorMessage(newOrder.getMessage());
+		}
 	}
 }

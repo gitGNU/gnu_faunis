@@ -215,6 +215,9 @@ public class GameWindow extends GraphWin {
 		return new Point(offsetX, offsetY);
 	}
 	
+	public Point getPos(){
+		return new Point(win.getLocation());
+	}
 	
 	protected class CommandSendButtonListener implements ActionListener {
 		@Override
