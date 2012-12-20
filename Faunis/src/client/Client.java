@@ -66,7 +66,7 @@ public class Client implements MoverManager, AnimatorManager {
 	public final static FileFilter directoryFilter = new FileFilter() {
 		@Override
 		public boolean accept(File file) {
-			return file.isDirectory();
+			return file.isDirectory() && !file.getName().startsWith(".");
 		}
 	};
 	
