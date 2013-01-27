@@ -1,4 +1,4 @@
-/* Copyright 2012 Simon Ley alias "skarute"
+/* Copyright 2012, 2013 Simon Ley alias "skarute"
  * 
  * This file is part of Faunis.
  * 
@@ -18,12 +18,15 @@
  */
 package client;
 
+import java.awt.Point;
 import java.io.File;
 
 public class ClientSettings {
 	private String classPath; // paths are declared in constructor below;
 	private String clientDataPath; // NOTE: All paths must end in "/"
+	private String gameGraphicsPath;
 	private String playerGraphicsPath;
+	private String decoGraphicsPath;
 	private String imageFileEnding = ".png";	// must begin with a fullstop!
 	private int fieldWidth = 20;
 	private int fieldHeight = 14;
@@ -40,11 +43,16 @@ public class ClientSettings {
 			e.printStackTrace();
 			return;
 		}
-		//classPath = classPath.substring(1);	// Windows error only?
 		File classPathFile = new File(classPath);
 		String parentPath = classPathFile.getParent()+"/";
 		clientDataPath = parentPath+"clientData/";
-		playerGraphicsPath = clientDataPath+"playerGraphics/";
+		gameGraphicsPath = clientDataPath+"graphics/";
+		playerGraphicsPath = gameGraphicsPath+"playerGraphics/";
+		decoGraphicsPath = gameGraphicsPath+"decoGraphics/";
+	}
+	
+	public String decoGraphicsPath() {
+		return decoGraphicsPath;
 	}
 	
 	public String playerGraphicsPath() {
@@ -95,5 +103,18 @@ public class ClientSettings {
 			return error;
 		}
 		return null;
+	}
+	
+	public Point pixelToMapField(Point pixel) {
+		return new Point(pixel.x / fieldWidth, pixel.y / fieldHeight);
+	}
+	
+	public Point mapFieldToLeftUpperPixel(Point field) {
+		return new Point(field.x * fieldWidth, field.y * fieldHeight);
+	}
+	
+	public Point mapFieldToCenterPixel(Point field) {
+		return new Point(fieldWidth/2 + field.x*fieldWidth,
+							fieldHeight/2 + field.y*fieldHeight);
 	}
 }

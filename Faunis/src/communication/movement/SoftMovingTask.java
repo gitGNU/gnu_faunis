@@ -1,4 +1,4 @@
-/* Copyright 2012 Simon Ley alias "skarute"
+/* Copyright 2012, 2013 Simon Ley alias "skarute"
  * 
  * This file is part of Faunis.
  * 
@@ -45,48 +45,51 @@ public class SoftMovingTask extends MovingTask {
 
 	@Override
 	protected void move() {
-		synchronized(moveable) {
-			synchronized(runningMutexKey) {
-				if (stopRunning)
-					return;
-				PlayerGraphics playerGraphics = (PlayerGraphics) moveable;
-				assert(playerGraphics != null);
-				ClientSettings settings = ((Client)(parent.parent)).getClientSettings();
-				int deltaLevelAmplitude = settings.deltaLevelAmplitude();
-				Path path = playerGraphics.getPath();
-				assert(path != null);
-				int deltaLevel = playerGraphics.getDeltaLevel();
-				Point nextPoint = path.top();
-				//System.out.println("deltaLevel="+deltaLevel+", nextPoint="+nextPoint);
-				assert(!(deltaLevel == 0 && nextPoint == null));
-				// We know where to go to,
-				// and we also know the deltaLevel
-				deltaLevel++;
-		
-				if (deltaLevel == 0) {
-					playerGraphics.setDeltaLevel(deltaLevel);
-					// stop movement if there's no further waypoint
-					if (nextPoint == null) {
-						// stop movement
-//						playerGraphics.resetPath();
+		Object movementSynchroStuff = parent.parent.getSynchroStuffForMovement();
+		synchronized(movementSynchroStuff) {
+			synchronized(moveable) {
+				synchronized(runningMutexKey) {
+					if (stopRunning)
 						return;
+					PlayerGraphics playerGraphics = (PlayerGraphics) moveable;
+					assert(playerGraphics != null);
+					ClientSettings settings = Client.getClientSettings();
+					int deltaLevelAmplitude = settings.deltaLevelAmplitude();
+					Path path = playerGraphics.getPath();
+					assert(path != null);
+					int deltaLevel = playerGraphics.getDeltaLevel();
+					Point nextPoint = path.top();
+					//System.out.println("deltaLevel="+deltaLevel+", nextPoint="+nextPoint);
+					assert(!(deltaLevel == 0 && nextPoint == null));
+					// We know where to go to,
+					// and we also know the deltaLevel
+					deltaLevel++;
+			
+					if (deltaLevel == 0) {
+						playerGraphics.setDeltaLevel(deltaLevel);
+						// stop movement if there's no further waypoint
+						if (nextPoint == null) {
+							// stop movement
+	//						playerGraphics.resetPath();
+							return;
+						}
+					} else if (deltaLevel == 1) {
+						// adapt direction to next waypoint
+						Direction newDirection = MovingTask.deltaToDirection(
+								nextPoint.x-playerGraphics.getX(), nextPoint.y-playerGraphics.getY());
+						if (newDirection != null)
+							playerGraphics.setDirection(newDirection);
+						playerGraphics.setDeltaLevel(deltaLevel);
+					} else if (deltaLevel > deltaLevelAmplitude) {
+						// move over to the next field and remove waypoint from path 
+						deltaLevel = -deltaLevelAmplitude;
+						playerGraphics.setDeltaLevel(deltaLevel);
+						assert(nextPoint != null);
+						playerGraphics.moveAbsolute(nextPoint.x, nextPoint.y, false);
+						path.pop();
+					} else {
+						playerGraphics.setDeltaLevel(deltaLevel);
 					}
-				} else if (deltaLevel == 1) {
-					// adapt direction to next waypoint
-					Direction newDirection = MovingTask.deltaToDirection(
-							nextPoint.x-playerGraphics.getX(), nextPoint.y-playerGraphics.getY());
-					if (newDirection != null)
-						playerGraphics.setDirection(newDirection);
-					playerGraphics.setDeltaLevel(deltaLevel);
-				} else if (deltaLevel > deltaLevelAmplitude) {
-					// move over to the next field and remove waypoint from path 
-					deltaLevel = -deltaLevelAmplitude;
-					playerGraphics.setDeltaLevel(deltaLevel);
-					assert(nextPoint != null);
-					playerGraphics.moveAbsolute(nextPoint.x, nextPoint.y, false);
-					path.pop();
-				} else {
-					playerGraphics.setDeltaLevel(deltaLevel);
 				}
 			}
 		}

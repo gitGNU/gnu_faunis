@@ -1,4 +1,4 @@
-/* Copyright 2012 Simon Ley alias "skarute"
+/* Copyright 2012, 2013 Simon Ley alias "skarute"
  * 
  * This file is part of Faunis.
  * 
@@ -54,7 +54,6 @@ public class Bone {
 		connectionOffsets = new ArrayList<HashMap<BodyPart, Point>>();
 		readConnectionOffsets();
 	}
-	
 	public Bone(String animationPrefix, String fileEnding, int maxFrameIndex) {
 		images = new ArrayList<BufferedImage>();
 		for (int frameIndex = 0; frameIndex <= maxFrameIndex; frameIndex++) {

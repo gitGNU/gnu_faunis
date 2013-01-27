@@ -1,4 +1,4 @@
-/* Copyright 2012 Simon Ley alias "skarute"
+/* Copyright 2012, 2013 Simon Ley alias "skarute"
  * 
  * This file is part of Faunis.
  * 
@@ -26,6 +26,7 @@ import java.util.concurrent.BlockingQueue;
 import client.AnimationData;
 import communication.GraphicalPlayerStatus;
 import communication.GraphicsContentManager;
+import communication.Link;
 import communication.Map;
 import communication.MapInfo;
 import communication.enums.AniEndType;
@@ -65,23 +66,36 @@ public class MapManager implements MoverManager {
 		thread.start();
 	}
 	
+	/** locks registeredPlayers, movingPlayers, player */
 	private void tryStopMovement(Player player) {
-		synchronized(movingPlayers) {
-			synchronized(player) {
-				Mover mover = movingPlayers.get(player);
-				if (mover != null) {
-					mover.stop();
-					unregisterMover(player);
-					// TODO: I think we can sum the above to mover.stopAndUnregister();
+		synchronized(registeredPlayers) {
+			synchronized(movingPlayers) {
+				synchronized(player) {
+					Mover mover = movingPlayers.get(player);
+					if (mover != null) {
+						mover.stopAndUnregister();
+					}
 				}
 			}
 		}
 	}
 	
+	/** If a mover wants to stop movement, it has to call
+	 * MapManager.unregisterMover(). Unfortunately, that function locks
+	 * registeredPlayers and movingPlayers AFTER the mover has already locked
+	 * stuff like moveable. Solution:
+	 * => Mover fetches these objects by calling this function and
+	 * locks them beforehand in the right order. */
 	public Object[] getSynchroStuffForMoverStop() {
-		return new Object[] {movingPlayers};
+		return new Object[] {registeredPlayers, movingPlayers};
 	}
 	
+	// nothing to lock on the server side during movement
+	public Object getSynchroStuffForMovement() {
+		return new Object();
+	}
+	
+	/** locks movingPlayers; registeredPlayers, moveable*/
 	@Override
 	public void unregisterMover(Moveable moveable) {
 		assert(moveable instanceof Player);
@@ -90,6 +104,23 @@ public class MapManager implements MoverManager {
 			movingPlayers.remove(movingPlayer);
 		}
 		// TODO: Check if the player has landed on a link to another map
+		synchronized(registeredPlayers) {
+			Link link;
+			synchronized(movingPlayer) {
+				link = map.getOutgoingLink(movingPlayer.getX(), movingPlayer.getY());
+				if (link != null) {
+					if (link.getTargetMap().equals(this.map.getName())) {
+						// just move the player to the targetField
+						link.move(movingPlayer);
+					} else {
+						// the player must be moved to another mapman:
+						// -> inform the butler so that he can apply the change
+						registeredPlayers.get(movingPlayer).put(
+							new MBCharAtOtherMapmanOrder(this, link));
+					}
+				}
+			}
+		}
 	}
 	
 	public void put(BMOrder order) {
@@ -314,6 +345,7 @@ public class MapManager implements MoverManager {
 		}
 	}
 	
+	/** locks registeredPlayers, playerNameToPlayer, movingPlayers, player */
 	private void unregisterPlayer(BMUnregisterOrder order) {
 		assert(order != null);
 		synchronized(registeredPlayers) {
@@ -351,7 +383,7 @@ public class MapManager implements MoverManager {
 				players.put(player.getName(), graphStatus);
 			}
 		}
-		return new MapInfo(map.getName(), players);
+		return new MapInfo(map, players);
 	}
 	
 	

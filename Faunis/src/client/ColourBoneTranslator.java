@@ -1,4 +1,4 @@
-/* Copyright 2012 Simon Ley alias "skarute"
+/* Copyright 2012, 2013 Simon Ley alias "skarute"
  * 
  * This file is part of Faunis.
  * 
@@ -35,7 +35,6 @@ public class ColourBoneTranslator {
 		return instance;
 	}
 	
-	
 	private ColourBoneTranslator() {
 		colourToBone = new HashMap<Color, BodyPart>();
 		colourToBone.put(Color.MAGENTA, BodyPart.head);
@@ -52,5 +51,9 @@ public class ColourBoneTranslator {
 	
 	public BodyPart translate(Color pixelColour) {
 		return colourToBone.get(pixelColour);
+	}
+	
+	public Color getDecoOffsetColour() {
+		return Color.RED;
 	}
 }

@@ -1,4 +1,4 @@
-/* Copyright 2012 Simon Ley alias "skarute"
+/* Copyright 2012, 2013 Simon Ley alias "skarute"
  * 
  * This file is part of Faunis.
  * 
@@ -24,6 +24,8 @@ import java.awt.Dimension;
 import java.awt.Point;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.util.ArrayList;
 
 import javax.swing.JButton;
@@ -54,6 +56,7 @@ public class GameWindow extends GraphWin {
 	private SimpleAttributeSet whisperTextStyle;
 	private SimpleAttributeSet oldCommandTextStyle;
 	private SimpleAttributeSet broadcastTextStyle;
+	private MyMouseListener mouseListener;
 	
 	public GameWindow(Client parent, int width, int height, String title) {
 		super(width, height, title);
@@ -102,6 +105,8 @@ public class GameWindow extends GraphWin {
 		southPanel.add(BorderLayout.SOUTH, commandPanel);
 		
 		win.getRootPane().setDefaultButton(commandSendButton);
+		mouseListener = new MyMouseListener();
+		drawingPanel.addMouseListener(mouseListener);
 		
 		win.getContentPane().add(BorderLayout.SOUTH, southPanel);
 		drawingPanel.setPreferredSize(new Dimension(width, height));
@@ -120,8 +125,6 @@ public class GameWindow extends GraphWin {
 		
 		Point mausPos = this.mousePos();
 		if (mausPos == null) mausPos = new Point(0,0);
-	    graph.setColor(Color.black);
-		graph.drawRect(mausPos.x, mausPos.y, 100, 100);
 
 		// depending on Client.clientStatus, other things have to be drawn 
 		synchronized(parent.getClientStatus()) {
@@ -133,7 +136,7 @@ public class GameWindow extends GraphWin {
 				// write map and player name:
 				writeMapAndPlayerInfo();
 				// draw all player graphics:
-				drawAllPlayers();
+				drawAllSprites();
 			}
 			
 			// draw clientStatus:
@@ -145,8 +148,8 @@ public class GameWindow extends GraphWin {
 		graph.setColor(Color.lightGray);
 		int width = img.getWidth();
 		int height = img.getHeight();
-		int fieldWidth = parent.getClientSettings().fieldWidth();
-		int fieldHeight = parent.getClientSettings().fieldHeight();
+		int fieldWidth = Client.getClientSettings().fieldWidth();
+		int fieldHeight = Client.getClientSettings().fieldHeight();
 		int maxRow = height / fieldHeight;
 		int maxColumn = width / fieldWidth;
 		// draw horizontal lines:
@@ -180,25 +183,33 @@ public class GameWindow extends GraphWin {
 		graph.drawString(status.toString(), 10, 10);
 	}
 	
-	/** locks currentPlayers; einzelne playerGraphics
-	 * Draw all characters */
-	private void drawAllPlayers() {
-		ArrayList<PlayerGraphics> allPlayerGraphics = parent.getAllGraphicsToDraw();
-		for (PlayerGraphics playerGraphics : allPlayerGraphics) {
-			synchronized(playerGraphics) {
-				Point offset = calculateDrawingOffset(playerGraphics);
-				String playerName = playerGraphics.getName();
-				int playerNameWidth = graph.getFontMetrics().stringWidth(playerName);
-				graph.setColor(Color.black);
-				graph.drawString(playerName, offset.x - playerNameWidth/2, offset.y + 15);
-				int frameIndex = playerGraphics.getFrame();
-				playerGraphics.draw(graph, offset.x, offset.y, frameIndex);
+	/** locks zOrderedSprites; single playerGraphics / decorations <br/>
+	 * Draws all characters. */
+	private void drawAllSprites() {
+		ArrayList<Sprite> allSprites = parent.getAllSpritesToDraw();
+		for (Sprite sprite : allSprites) {
+			synchronized(sprite) {
+				if (sprite instanceof PlayerGraphics) {
+					PlayerGraphics playerGraphics = (PlayerGraphics) sprite;
+					Point offset = calculateDrawingOffset(playerGraphics);
+					String playerName = playerGraphics.getName();
+					int playerNameWidth = graph.getFontMetrics().stringWidth(playerName);
+					graph.setColor(Color.black);
+					graph.drawString(playerName, offset.x - playerNameWidth/2, offset.y + 15);
+					playerGraphics.draw(graph, offset.x, offset.y);
+				} else if (sprite instanceof Decoration) {
+					Decoration decoration = (Decoration) sprite;
+					Point offset = calculateDrawingOffset(decoration);
+					decoration.draw(graph, offset.x, offset.y);
+				} else {
+					throw new RuntimeException("drawAllSprites(): Could not identify sprite!");
+				}
 			}
 		}
 	}
 	
 	private Point calculateDrawingOffset(PlayerGraphics playerGraphics) {
-		ClientSettings clientSettings = parent.getClientSettings();
+		ClientSettings clientSettings = Client.getClientSettings();
 		int numDeltaLevels = clientSettings.numberOfDeltaLevelStates();
 		int fieldWidth = clientSettings.fieldWidth();
 		int fieldHeight = clientSettings.fieldHeight();
@@ -214,8 +225,13 @@ public class GameWindow extends GraphWin {
 		int offsetY = fieldHeight/2 + fieldHeight * fieldY + deltaLevel*deltaVert;
 		return new Point(offsetX, offsetY);
 	}
+	private Point calculateDrawingOffset(Decoration decoration) {
+		ClientSettings clientSettings = Client.getClientSettings();
+		Point decorationPoint = new Point(decoration.getX(), decoration.getY());
+		return clientSettings.mapFieldToCenterPixel(decorationPoint);
+	}
 	
-	public Point getPos(){
+	public Point getPosition(){
 		return new Point(win.getLocation());
 	}
 	
@@ -238,6 +254,30 @@ public class GameWindow extends GraphWin {
 				boolean success = parent.parseCommand(commandPrefix, commandRest);
 				if (success) commandEdit.setText(null);
 			}
+		}
+	}
+	
+	protected class MyMouseListener implements MouseListener {
+
+		@Override
+		public void mouseClicked(MouseEvent e) {
+			parent.mouseClick(e.getPoint());
+		}
+
+		@Override
+		public void mousePressed(MouseEvent e) {
+		}
+
+		@Override
+		public void mouseReleased(MouseEvent e) {
+		}
+
+		@Override
+		public void mouseEntered(MouseEvent e) {
+		}
+
+		@Override
+		public void mouseExited(MouseEvent e) {
 		}
 	}
 	

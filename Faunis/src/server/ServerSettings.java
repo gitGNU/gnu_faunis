@@ -1,4 +1,4 @@
-/* Copyright 2012 Simon Ley alias "skarute"
+/* Copyright 2012, 2013 Simon Ley alias "skarute"
  * 
  * This file is part of Faunis.
  * 
@@ -25,7 +25,10 @@ public class ServerSettings {
 	private String serverDataPath; // NOTE: All paths must end in "/"
 	private String clientDataPath;
 	private String accountPath;
+	private String gameGraphicsPath;
+	private String decoGraphicsPath;
 	private String playerGraphicsPath;
+	private String mapPath;
 	private String imageFileEnding = ".png";
 	private String starterRegion = "greenFields";
 	private int maxPlayersPerAccount = 3;
@@ -40,13 +43,15 @@ public class ServerSettings {
 			e.printStackTrace();
 			return;
 		}
-		//classPath = classPath.substring(1);	// Windows error only?
 		File classPathFile = new File(classPath);
 		String parentPath = classPathFile.getParent()+"/";
 		serverDataPath = parentPath+"serverData/";
 		clientDataPath = parentPath+"clientData/";
 		accountPath = serverDataPath+"accounts/";
-		playerGraphicsPath = clientDataPath+"playerGraphics/";
+		gameGraphicsPath = clientDataPath+"graphics/";
+		playerGraphicsPath = gameGraphicsPath+"playerGraphics/";
+		decoGraphicsPath = gameGraphicsPath+"decoGraphics/";
+		mapPath = serverDataPath+"maps/";
 	}
 	
 	public String accountPath() {
@@ -63,6 +68,14 @@ public class ServerSettings {
 	
 	public String playerGraphicsPath() {
 		return playerGraphicsPath;
+	}
+	
+	public String decoGraphicsPath() {
+		return decoGraphicsPath;
+	}
+	
+	public String mapPath() {
+		return mapPath;
 	}
 	
 	public int maxPlayersPerAccount() {
@@ -86,5 +99,9 @@ public class ServerSettings {
 		if (! (playerGraphicsDir.exists() && playerGraphicsDir.isDirectory()))
 			System.out.println("WARNING: Player graphics directory "
 								+playerGraphicsPath+" doesn't exist!");
+		File mapDir = new File(mapPath);
+		if (! (mapDir.exists() && mapDir.isDirectory()))
+			System.out.println("WARNING: Map directory "
+								+mapPath+" doesn't exist!");
 	}
 }

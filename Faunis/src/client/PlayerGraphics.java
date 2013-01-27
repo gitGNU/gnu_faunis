@@ -1,4 +1,4 @@
-/* Copyright 2012 Simon Ley alias "skarute"
+/* Copyright 2012, 2013 Simon Ley alias "skarute"
  * 
  * This file is part of Faunis.
  * 
@@ -37,16 +37,17 @@ import communication.movement.Path;
  * the player's GraphicalPlayerStatus and the client's GraphicsContentManager. 
  * Any additional fields here don't have to be stored at / distributed over
  * the server and can be filled of each client during construction of playerGraphics. */
-public class PlayerGraphics implements Moveable, Animateable {
+public class PlayerGraphics implements Moveable, Animateable, Sprite {
 	private GraphicalPlayerStatus info;
 	private Client parent;
 	private int deltaLevel = 0; // between -1 and +1
 	private int frame = 0;
+	private ZOrderManager zOrderManager;
 	
-	
-	public PlayerGraphics(GraphicalPlayerStatus info, Client parent) {
+	public PlayerGraphics(GraphicalPlayerStatus info, Client parent, ZOrderManager manager) {
 		this.info = info;
 		this.parent = parent;
+		this.zOrderManager = manager;
 	}
 
 	private Bone getBone(BodyPart part) {
@@ -61,7 +62,9 @@ public class PlayerGraphics implements Moveable, Animateable {
 				getBone(info.type, animation, part, info.direction);
 	}
 	
-	public void draw(Graphics drawOnto, int x, int y, int frameIndex) {
+	@Override
+	public void draw(Graphics drawOnto, int x, int y) {
+		int frameIndex = this.frame;
 		// Decide whether we have a limbed or compact type
 		GraphicsContentManager graphicsContentManager = parent.getGraphicsContentManager();
 		AniCompoType compoType = 
@@ -125,10 +128,43 @@ public class PlayerGraphics implements Moveable, Animateable {
 	public int getX() {
 		return info.x;
 	}
-
 	@Override
 	public int getY() {
 		return info.y;
+	}
+	@Override
+	public void setX(int x) {
+		info.x = x;
+	}
+	/** locks zOrderedSprites */
+	@Override
+	public void setY(int y) {
+		if (zOrderManager != null) {
+			// Problem here: there is a slight time window when we
+			// change the zOrderedSprites key and the actual y value
+			// in which the values don't correspond.
+			// -> Whenever we draw conclusions from a sprite's z value to
+			// its key in zOrderedSprites, we have to lock zOrderedSprites
+			// firsthand before reading the z value.
+			Object zOrderedSprites = zOrderManager.getSynchroStuffForMovement();
+			synchronized(zOrderedSprites) {
+				zOrderManager.notifyZOrderChange(this, info.y, y);
+				info.y = y;
+			}
+		} else {
+			throw new RuntimeException("Missing zOrderManager!");
+		}
+	}
+	
+	@Override
+	public float getZOrder() {
+		int deltaLevelAmplitude = Client.getClientSettings().deltaLevelAmplitude();
+		return info.y + (this.deltaLevel / (float)deltaLevelAmplitude);
+	}
+	
+	@Override
+	public void setZOrderManager(ZOrderManager listener) {
+		zOrderManager = listener;
 	}
 
 	@Override
@@ -199,7 +235,8 @@ public class PlayerGraphics implements Moveable, Animateable {
 	}
 
 	/** Directly sets the coordinates of this playerGraphics to the given ones.
-	 * If given flag adaptDirection is set, sets the direction accordingly. */
+	 * If given flag adaptDirection is set, sets the direction accordingly.
+	*/
 	@Override
 	public void moveAbsolute(int x, int y, boolean adaptDirection) {
 		if (adaptDirection) {
@@ -208,7 +245,7 @@ public class PlayerGraphics implements Moveable, Animateable {
 			if (newDirection != null)
 				info.direction = newDirection;
 		}
-		info.x = x;
-		info.y = y;
+		setX(x);
+		setY(y);
 	}
 }

@@ -1,4 +1,4 @@
-/* Copyright 2012 Simon Ley alias "skarute"
+/* Copyright 2012, 2013 Simon Ley alias "skarute"
  * 
  * This file is part of Faunis.
  * 
@@ -23,11 +23,11 @@ import java.util.HashMap;
 
 public class MapInfo implements Serializable {
 	private static final long serialVersionUID = 1L;
-	public String mapName;
+	public Map map;
 	public HashMap<String, GraphicalPlayerStatus> players;
 	
-	public MapInfo(String mapName, HashMap<String, GraphicalPlayerStatus> players) {
-		this.mapName = mapName;
+	public MapInfo(Map map, HashMap<String, GraphicalPlayerStatus> players) {
+		this.map = map;
 		this.players = players;
 	}
 }

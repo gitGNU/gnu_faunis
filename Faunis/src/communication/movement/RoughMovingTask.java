@@ -1,4 +1,4 @@
-/* Copyright 2012 Simon Ley alias "skarute"
+/* Copyright 2012, 2013 Simon Ley alias "skarute"
  * 
  * This file is part of Faunis.
  * 
@@ -36,19 +36,22 @@ public class RoughMovingTask extends MovingTask {
 
 	@Override
 	protected void move() {
-		synchronized(moveable) {
-			synchronized(runningMutexKey) {
-				if (stopRunning)
-					return;
-				Path path = moveable.getPath();
-				assert(path != null);
-				Point nextPoint = path.pop();
-				if (nextPoint == null) {
-//					moveable.setPath(null);
-					return;
-				}				
-				moveable.moveAbsolute(nextPoint.x, nextPoint.y, true);
-//				if (path.isEmpty()) moveable.setPath(null);
+		Object movementSynchroStuff = parent.parent.getSynchroStuffForMovement();
+		synchronized(movementSynchroStuff) {
+			synchronized(moveable) {
+				synchronized(runningMutexKey) {
+					if (stopRunning)
+						return;
+					Path path = moveable.getPath();
+					assert(path != null);
+					Point nextPoint = path.pop();
+					if (nextPoint == null) {
+//						moveable.setPath(null);
+						return;
+					}				
+					moveable.moveAbsolute(nextPoint.x, nextPoint.y, true);
+//					if (path.isEmpty()) moveable.setPath(null);
+				}
 			}
 		}
 	}

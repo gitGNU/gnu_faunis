@@ -1,4 +1,4 @@
-/* Copyright 2012 Simon Ley alias "skarute"
+/* Copyright 2012, 2013 Simon Ley alias "skarute"
  * 
  * This file is part of Faunis.
  * 
@@ -18,15 +18,26 @@
  */
 package communication;
 
-public class Map {
+import java.io.Serializable;
+import java.util.ArrayList;
+
+
+public class Map implements Serializable {
+	private static final long serialVersionUID = 1L;
 	private String name;
 	private int width;
 	private int height;
+	private ArrayList<GraphicalDecoStatus> decoInfos;
+	private ArrayList<Link> links;
 	
-	public Map(String name, int width, int height) {
+	public Map(String name, int width, int height,
+				ArrayList<GraphicalDecoStatus> decoInfos,
+				ArrayList<Link> links) {
 		this.name = name;
 		this.width = width;
 		this.height = height;
+		this.decoInfos = decoInfos;
+		this.links = links;
 	}
 	
 	public String getName() {
@@ -39,5 +50,24 @@ public class Map {
 	
 	public int getHeight() {
 		return height;
+	}
+	
+	public ArrayList<GraphicalDecoStatus> getDecoInfos() {
+		return decoInfos;
+	}
+	
+	public ArrayList<Link> getLinks() {
+		return links;
+	}
+	
+	public Link getOutgoingLink(int x, int y) {
+		if (links == null)
+			return null;
+		for (Link link : links) {
+			if (x==link.getSourceX() && y==link.getSourceY()) {
+				return link;
+			}
+		}
+		return null;
 	}
 }

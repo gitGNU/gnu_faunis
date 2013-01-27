@@ -1,1 +1,8 @@
-Simon Ley: Everything up to revision 1, resp. Faunis release 0.1
+Simon Ley:
+- Everything up to revision 1, resp. Faunis release 0.1
+- MapContentManager, Map, Link, DirectoryFilter,
+  GraphicalDecoStatus, Decoration, OffsetImage,
+  DupSortedMap, ZOrderManager, exemplary map data
+
+Paul Moises Turcato:
+- All classes about inventory

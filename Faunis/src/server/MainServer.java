@@ -1,4 +1,4 @@
-/* Copyright 2012 Simon Ley alias "skarute"
+/* Copyright 2012, 2013 Simon Ley alias "skarute"
  * 
  * This file is part of Faunis.
  * 
@@ -34,10 +34,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map.Entry;
+
 import javax.swing.JFrame;
 
 import server.mapmanToButlerOrders.MBStopThreadOrder;
 
+import communication.DirectoryFilter;
 import communication.GraphicsContentManager;
 import communication.Map;
 import communication.enums.CharacterClass;
@@ -46,7 +49,7 @@ import communication.movement.Path;
 
 /** The main program; Holds all references and manages file access. */
 public class MainServer {
-	private ServerSettings serverSettings;
+	private static ServerSettings serverSettings;
 	private Reception reception;
 	private InventoryManager invMan;
 	private List<Butler> butlers;	// To avoid deadlocks, these resources have to
@@ -56,13 +59,9 @@ public class MainServer {
 	private HashMap<String, Player> activePlayernameToPlayer;
 	private HashMap<String, Account> loggedAccnameToAccount;
 	private GraphicsContentManager graphicsContentManager;
+	private MapContentManager mapContentManager;
 	private HashSet<String> allExistingPlayerNames;
-	public final static FileFilter directoryFilter = new FileFilter() {
-		@Override
-		public boolean accept(File file) {
-			return file.isDirectory() && !file.getName().startsWith(".");
-		}
-	};
+	public final static FileFilter directoryFilter = new DirectoryFilter();
 	
 	public static void main(String[] args) {
 		MainServer server = new MainServer();
@@ -71,7 +70,7 @@ public class MainServer {
 	
 	public void run() {
 		System.out.println("Welcome to the Faunis server!");
-		System.out.println("Copyright 2012 Simon Ley alias \"skarute\"");
+		System.out.println("Copyright 2012, 2013 Simon Ley alias \"skarute\"");
 		System.out.println("Licensed under GNU AGPL v3 or later");
 		serverSettings = new ServerSettings();
 		butlers = new ArrayList<Butler>();
@@ -95,23 +94,32 @@ public class MainServer {
 		
 		// load content:
 		graphicsContentManager = new GraphicsContentManager(
-				serverSettings.playerGraphicsPath(), serverSettings.imageFileEnding());
+				serverSettings.playerGraphicsPath(),
+				serverSettings.decoGraphicsPath(),
+				serverSettings.imageFileEnding());
 		graphicsContentManager.loadResourcesForServer();
-		// TODO
+		mapContentManager = new MapContentManager();
+		mapContentManager.loadAllMaps(serverSettings.mapPath());
+		synchronized(mapnameToMapman) {
+			for (Entry<String, Map> mapEntry : mapContentManager.getMaps().entrySet()) {
+				MapManager mapman = new MapManager(this, mapEntry.getValue());
+				mapnameToMapman.put(mapEntry.getKey(), mapman);
+			}
+		}
 		
 		// DEBUG - load testing content:
-		String starterRegion = serverSettings.starterRegion();
-		Map starterMap = new Map(starterRegion, 50, 50);
-		MapManager starterMapman = new MapManager(this, starterMap);
-		synchronized(mapnameToMapman) {
-			this.mapnameToMapman.put(starterRegion, starterMapman);
-		}
+//		String starterRegion = serverSettings.starterRegion();
+//		Map starterMap = new Map(starterRegion, 50, 50, new ArrayList<GraphicalDecoStatus>(), new ArrayList<Link>());
+//		MapManager starterMapman = new MapManager(this, starterMap);
+//		synchronized(mapnameToMapman) {
+//			this.mapnameToMapman.put(starterRegion, starterMapman);
+//		}
 		
 		//
 		invMan = new InventoryManager(this);
 	}
 	
-	public ServerSettings getServerSettings() {
+	public static ServerSettings getServerSettings() {
 		return serverSettings;
 	}
 	

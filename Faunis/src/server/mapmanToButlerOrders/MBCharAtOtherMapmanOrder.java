@@ -1,4 +1,4 @@
-/* Copyright 2012 Simon Ley alias "skarute"
+/* Copyright 2012, 2013 Simon Ley alias "skarute"
  * 
  * This file is part of Faunis.
  * 
@@ -18,6 +18,7 @@
  */
 package server.mapmanToButlerOrders;
 
+import communication.Link;
 import server.MapManager;
 
 /** When the player steps on a link on the map, the MapManager tells the Butler
@@ -25,14 +26,14 @@ import server.MapManager;
  * Butler has to do that on his own by calling unregister() and register().
 */
 public class MBCharAtOtherMapmanOrder extends MBOrder {
-	private MapManager newMapman;
+	private Link link;
 	
-	public MBCharAtOtherMapmanOrder(MapManager source, MapManager newMapman) {
+	public MBCharAtOtherMapmanOrder(MapManager source, Link link) {
 		super(source);
-		this.newMapman = newMapman;
+		this.link = link;
 	}
 	
-	public MapManager getNewMapman() {
-		return newMapman;
+	public Link getLink() {
+		return link;
 	}
 }

@@ -1,4 +1,4 @@
-/* Copyright 2012 Simon Ley alias "skarute"
+/* Copyright 2012, 2013 Simon Ley alias "skarute"
  * 
  * This file is part of Faunis.
  * 
@@ -18,6 +18,7 @@
  */
 package server;
 
+import java.awt.Point;
 import java.io.File;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -36,6 +37,7 @@ import server.invmanToButlerOrders.IBOrder;
 import server.invmanToButlerOrders.IBSendErrorMessageOrder;
 import server.invmanToButlerOrders.IBSendInventoryOrder;
 import server.mapmanToButlerOrders.*;
+import communication.Link;
 import communication.butlerToClientOrders.*;
 import communication.clientToButlerOrders.*;
 import communication.enums.CharacterClass;
@@ -371,7 +373,7 @@ public class Butler {
 		} else if (read instanceof CBServerSourceOrder) {
 			System.out.println("CBServerSourceOrder");
 			sendOrderToClient(new BCSystemMessageOrder(
-				"Server source code at "+parent.getServerSettings().serverSourceAt()));
+				"Server source code at "+MainServer.getServerSettings().serverSourceAt()));
 		} else if (read instanceof CBAccessInventoryOrder){
 			//Strips order to convert to BIOrder
 			InventoryType invType = ((CBAccessInventoryOrder) read).getInvType();
@@ -494,9 +496,16 @@ public class Butler {
 	private void changeMapman(MBCharAtOtherMapmanOrder order) {
 		MapManager oldMapman = order.getSource();
 		assert(this.activeMapman == oldMapman);
-		MapManager newMapman = order.getNewMapman();
-		this.activeMapman = null;
+		Link link = order.getLink();
+		String newMap = link.getTargetMap();
+		MapManager newMapman = parent.getMapman(newMap);
 		removePlayerFromMapman(oldMapman, true);
+		do {
+			System.out.println("Waiting for mapman to remove active player...");
+		} while (activePlayer.getMapName() != null);
+		synchronized(activePlayer) {
+			link.move(activePlayer);
+		}
 		addPlayerToMapman(newMapman, true);
 		this.activeMapman = newMapman;
 	}

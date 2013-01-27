@@ -1,4 +1,4 @@
-/* Copyright 2012 Simon Ley alias "skarute"
+/* Copyright 2012, 2013 Simon Ley alias "skarute"
  * 
  * This file is part of Faunis.
  * 
@@ -18,7 +18,7 @@
  */
 package client;
 
-import java.io.File;
+import java.awt.Point;
 import java.io.FileFilter;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -30,8 +30,12 @@ import java.util.HashMap;
 
 import javax.swing.SwingUtilities;
 
+import communication.DirectoryFilter;
+import communication.GraphicalDecoStatus;
 import communication.GraphicalPlayerStatus;
 import communication.GraphicsContentManager;
+import communication.Link;
+import communication.Map;
 import communication.MapInfo;
 import communication.butlerToClientOrders.*;
 import communication.clientToButlerOrders.*;
@@ -44,31 +48,26 @@ import communication.movement.MoverManager;
 import communication.movement.MovingTask;
 import communication.movement.SoftMovingTask;
 
-
-public class Client implements MoverManager, AnimatorManager {
+public class Client implements MoverManager, AnimatorManager, ZOrderManager {
 	private Object connectionModiMutexKey;
 	private boolean connectionModiOccupied;
 	private ClientStatus clientStatus;
-	private ClientSettings clientSettings;
+	private static ClientSettings clientSettings;
 	private GraphicsContentManager graphicsContentManager;
 	private Socket socket;
 	private ObjectOutputStream output;
 	protected ObjectInputStream input;
 	private GameWindow win;
 	private String activePlayerName;
-	private String currentMapName;
+	private Map currentMap;
 	private HashMap<String, PlayerGraphics> currentPlayers;
 	private HashMap<PlayerGraphics, Mover> movingPlayerGraphics;
 	private HashMap<PlayerGraphics, Animator> animatedPlayerGraphics;
+	private DupSortedMap<Float, Sprite> zOrderedSprites;
 	private Thread serverThread; // steadily replies to requests from the server side
 	private ServerRunnable serverRunnable; // the serverThread's job
 	protected boolean stopServerThread;
-	public final static FileFilter directoryFilter = new FileFilter() {
-		@Override
-		public boolean accept(File file) {
-			return file.isDirectory() && !file.getName().startsWith(".");
-		}
-	};
+	public final static FileFilter directoryFilter = new DirectoryFilter();
 	
 	public static void main(String[] args){
 		new Client().init();
@@ -112,11 +111,11 @@ public class Client implements MoverManager, AnimatorManager {
 			e.printStackTrace();
 		}
 		logSystemMessage("Welcome to Faunis!");
-		logSystemMessage("Copyright 2012 Simon Ley alias \"skarute\"");
+		logSystemMessage("Copyright 2012, 2013 Simon Ley alias \"skarute\"");
 		logSystemMessage("Licensed under GNU AGPL v3 or later");
 		
 		// load client settings:
-		clientSettings = new ClientSettings();
+		if (clientSettings == null) clientSettings = new ClientSettings();
 		// check if clientSettings paths exist:
 		String pathErrorMsg = clientSettings.checkPaths();
 		if (pathErrorMsg != null)
@@ -124,13 +123,16 @@ public class Client implements MoverManager, AnimatorManager {
 		
 		// load data:
 		graphicsContentManager = new GraphicsContentManager(
-			clientSettings.playerGraphicsPath(), clientSettings.imageFileEnding());
+			clientSettings.playerGraphicsPath(),
+			clientSettings.decoGraphicsPath(),
+			clientSettings.imageFileEnding());
 		graphicsContentManager.loadResourcesForClient();
 		
 		currentPlayers = new HashMap<String, PlayerGraphics>();
 		
 		this.movingPlayerGraphics = new HashMap<PlayerGraphics, Mover>();
 		this.animatedPlayerGraphics = new HashMap<PlayerGraphics, Animator>();
+		this.zOrderedSprites = new DupSortedMap<Float, Sprite>();
 		
 		this.serverRunnable = new ServerRunnable(this);
 
@@ -147,15 +149,22 @@ public class Client implements MoverManager, AnimatorManager {
 		}
 	}
 	
+	public Map getCurrentMap() {
+		return currentMap;
+	}
+	
 	public String getCurrentMapName() {
-		return currentMapName;
+		if (currentMap != null)
+			return currentMap.getName();
+		else
+			return null;
 	}
 	
 	public String getCurrentPlayerName() {
 		return activePlayerName;
 	}
 	
-	public ClientSettings getClientSettings() {
+	public static ClientSettings getClientSettings() {
 		return clientSettings;
 	}
 
@@ -169,6 +178,11 @@ public class Client implements MoverManager, AnimatorManager {
 		return new Object[] {animatedPlayerGraphics};
 	}
 	
+	@Override
+	public DupSortedMap<Float, Sprite> getSynchroStuffForMovement() {
+		return zOrderedSprites;
+	}
+	
 	public GraphicsContentManager getGraphicsContentManager() {
 		return graphicsContentManager;
 	}
@@ -176,7 +190,11 @@ public class Client implements MoverManager, AnimatorManager {
 	public ClientStatus getClientStatus() {
 		return clientStatus;
 	}
-		
+	
+	// ################################################################################
+	// Client to server section: ######################################################	
+	// ################################################################################
+	
 	/** locks connectionModiMutexKey; clientStatus */
 	public boolean connect() {
 		synchronized(connectionModiMutexKey) {
@@ -275,9 +293,132 @@ public class Client implements MoverManager, AnimatorManager {
 		}
 	}
 	
+	/** locks clientStatus, output<br/>
+	 *  Tries to send given ClientOrder to the own Butler, and returns 
+	 *  the success thereof as a boolean.*/
+	public boolean sendOrder(CBOrder c){
+		synchronized(clientStatus) {
+			if (clientStatus == ClientStatus.disconnected) {
+				logErrorMessage("Client: Couldn't send order since there's no connection!");
+				return false;
+			}
+			assert(output != null);
+			synchronized(output) {
+				try {
+					output.writeObject(c);
+				} catch (IOException e) {
+					logErrorMessage("Error while sending ClientOrder");
+					return false;
+				}
+				return true;
+			}
+		}
+	}
+
+
+	public boolean parseCommand(String commandPrefix, String[] commandSplitDetails) {
+		if (commandPrefix.equals("/c")) {
+			connect();
+			return true;
+		} else if (commandPrefix.equals("/i") && commandSplitDetails.length >= 2) {
+			String loginName = commandSplitDetails[0];
+			String loginPassword = commandSplitDetails[1];
+			sendOrder(new CBLoginOrder(loginName, loginPassword));
+			return true;
+		} else if (commandPrefix.equals("/o")) {
+			sendOrder(new CBLogoutOrder());
+			return true;
+		} else if (commandPrefix.equals("/x")) {
+			sendOrder(new CBDisconnectOrder());
+			return true;
+		} else if (commandPrefix.equals("/w") && commandSplitDetails.length >= 2) {
+			String receiver = commandSplitDetails[0];
+			String message = concatenateHelper(commandSplitDetails, 1);
+			sendOrder(new CBChatOrder(message, receiver));
+			return true;
+		} else if (commandPrefix.equals("/b") && commandSplitDetails.length >= 1) {
+			String message = concatenateHelper(commandSplitDetails, 0);
+			sendOrder(new CBChatOrder(message, null));
+			return true;
+		} else if (commandPrefix.equals("/l")) {
+			String playerName = commandSplitDetails[0];
+			sendOrder(new CBLoadPlayerOrder(playerName));
+			return true;
+		} else if (commandPrefix.equals("/u")) {
+			sendOrder(new CBUnloadPlayerOrder());
+			return true;
+		} else if (commandPrefix.equals("/n") && commandSplitDetails.length >= 1) {
+			String playerName = commandSplitDetails[0];
+			sendOrder(new CBCreatePlayerOrder(playerName));
+			return true;
+		} else if (commandPrefix.equals("/m") && commandSplitDetails.length >= 2) {
+			int walkX, walkY;
+			try {
+				walkX = Integer.parseInt(commandSplitDetails[0]);
+				walkY = Integer.parseInt(commandSplitDetails[1]);
+			} catch(NumberFormatException e) {
+				logErrorMessage("Error while parsing the numbers.");
+				return false;
+			}
+			sendOrder(new CBMoveOrder(walkX, walkY));
+			return true;
+		} else if (commandPrefix.equals("/e")) {
+			String emoteName = null;
+			if (commandSplitDetails.length >= 1) {
+				emoteName = commandSplitDetails[0];
+			}
+			sendOrder(new CBTriggerEmoteOrder(emoteName));
+			return true;
+		} else if (commandPrefix.equals("/s")) {
+			sendOrder(new CBServerSourceOrder());
+			return true;
+		}
+		
+		else if(commandPrefix.equals("/inv") && (commandSplitDetails.length == 4 || commandSplitDetails.length == 3 || commandSplitDetails.length == 1)){
+			if(commandSplitDetails[0].toUpperCase().equals("VIEW")){
+				sendOrder(new CBAccessInventoryOrder(InventoryType.VIEW, activePlayerName));
+			}else if(commandSplitDetails[0].toUpperCase().equals("ADD") && (commandSplitDetails.length == 3)){
+				try{
+					int itemID = Integer.parseInt(commandSplitDetails[1]);
+					int qnt = Integer.parseInt(commandSplitDetails[2]);
+					sendOrder(new CBAccessInventoryOrder(InventoryType.ADD, activePlayerName, itemID, qnt));
+				}catch(NumberFormatException e){
+					logErrorMessage("Error while parsing the numbers.");
+					return false;
+				}
+			}else if(commandSplitDetails[0].toUpperCase().equals("THROW") && (commandSplitDetails.length == 3)){
+				try{
+					int itemID = Integer.parseInt(commandSplitDetails[1]);
+					int qnt = Integer.parseInt(commandSplitDetails[2]);
+					sendOrder(new CBAccessInventoryOrder(InventoryType.THROW, activePlayerName, itemID, qnt));
+				}catch(NumberFormatException e){
+					logErrorMessage("Error while parsing the numbers.");
+					return false;
+				}
+			}else if(commandSplitDetails[0].toUpperCase().equals("GIVE") && (commandSplitDetails.length == 4)){
+				try{
+					int itemID = Integer.parseInt(commandSplitDetails[2]);
+					int qnt = Integer.parseInt(commandSplitDetails[3]);
+					sendOrder(new CBAccessInventoryOrder(InventoryType.GIVE, activePlayerName, commandSplitDetails[1], itemID, qnt));
+				}catch(NumberFormatException e){
+					logErrorMessage("Error while parsing the numbers.");
+					return false;
+				}
+			}
+			return true;
+		}
+		
+		else {
+			logErrorMessage("Command couldn't be interpreted.");
+			return false;
+		}
+		// TODO: handle further commands
+	}
 	
 	
+	// ###########################################################################################
 	// Server to client section: #################################################################
+	// ###########################################################################################
 	
 	class ServerRunnable implements Runnable {
 		private Client parent;
@@ -410,16 +551,21 @@ public class Client implements MoverManager, AnimatorManager {
 			new SwingMessageRunnable(systemMessage, MessageType.system, win));
 	}
 	
-	/** locks currentPlayers, movingPlayerGraphics, playerGraphics */
+	/** locks many things */
 	public void addChar(BCAddCharOrder order) {
 		GraphicalPlayerStatus status = order.getGraphStatus();
-		PlayerGraphics playerGraphics = new PlayerGraphics(status, this);
+		PlayerGraphics playerGraphics = new PlayerGraphics(status, this, this);
 		String playerName = order.getPlayerName();
 		
 		// Add playerGraphics:
 		synchronized(currentPlayers) {
-			assert(! currentPlayers.containsKey(playerName));
-			currentPlayers.put(playerName, playerGraphics);
+			synchronized(zOrderedSprites) {
+				assert(! currentPlayers.containsKey(playerName));
+				currentPlayers.put(playerName, playerGraphics);
+				assert(! zOrderedSprites.contains(playerGraphics,
+						                      playerGraphics.getZOrder()));
+				zOrderedSprites.add(playerGraphics, playerGraphics.getZOrder());
+			}
 		}
 		// If the new playerGraphics is moving, create Mover and add it:
 		if (playerGraphics.hasPath()) {
@@ -429,7 +575,7 @@ public class Client implements MoverManager, AnimatorManager {
 		}
 	}
 	
-	/** locks currentPlayers; movingPlayerGraphics; currentPlayers */
+	/** locks many things */
 	public void removeChar(BCRemoveCharOrder order) {
 		String playerName = order.getPlayerName();
 		PlayerGraphics playerGraphics;
@@ -442,41 +588,56 @@ public class Client implements MoverManager, AnimatorManager {
 		tryStopAnimation(playerGraphics);
 		
 		synchronized(currentPlayers) {
-			assert(currentPlayers.containsKey(playerName));
-			currentPlayers.remove(playerName);
+			synchronized(zOrderedSprites) {
+				assert(currentPlayers.containsKey(playerName));
+				currentPlayers.remove(playerName);
+				assert(zOrderedSprites.contains(playerGraphics,
+						                   playerGraphics.getZOrder()));
+				zOrderedSprites.remove(playerGraphics, playerGraphics.getZOrder());
+			}
 		}
 	}
 	
-	/** locks currentPlayers; movingPlayerGraphics; currentPlayers */
+	/** locks many things */
 	public void changeChar(BCChangeCharOrder order) {
 		GraphicalPlayerStatus status = order.getGraphStatus();
-		PlayerGraphics playerGraphics = new PlayerGraphics(status, this);
+		PlayerGraphics playerGraphics = new PlayerGraphics(status, this, this);
 		String playerName = order.getPlayerName();
 		PlayerGraphics oldGraphics = null;
 		synchronized(currentPlayers) {
-			assert(currentPlayers.containsKey(playerName));
-			oldGraphics = currentPlayers.get(playerName);
-		}
-		System.out.println("old x="+oldGraphics.getX()+", y="+oldGraphics.getY());
-		System.out.println("new x="+playerGraphics.getX()+", y="+playerGraphics.getY());
-		// If playerGraphics was moving before, remove Mover:
-		tryStopMovement(oldGraphics);
-		tryStopAnimation(oldGraphics);
-		// see NOTE above
-		
-		// Replace playerGraphics
-		synchronized(currentPlayers) {
-			assert(currentPlayers.containsKey(playerName));
-			currentPlayers.put(playerName, playerGraphics);
-		}
-		// If the new playerGraphics is moving, create Mover and add it:
-		if (playerGraphics.hasPath()) {
-			tryStartMovement(playerGraphics);
-		} else if (playerGraphics.hasEmote()) {
-			tryStartAnimation(playerGraphics, playerGraphics.getEmote());
+			synchronized(movingPlayerGraphics) {
+				synchronized(animatedPlayerGraphics) {
+					synchronized (zOrderedSprites) {
+						assert(currentPlayers.containsKey(playerName));
+						oldGraphics = currentPlayers.get(playerName);
+						synchronized(oldGraphics) {
+							assert(oldGraphics != null);
+							// If playerGraphics was moving before, remove Mover:
+							tryStopMovement(oldGraphics);
+							tryStopAnimation(oldGraphics);
+							// see NOTE above
+							
+							assert(zOrderedSprites.contains(oldGraphics,
+									oldGraphics.getZOrder()));
+							zOrderedSprites.remove(oldGraphics, oldGraphics.getZOrder());
+							
+							// Replace playerGraphics
+							assert(currentPlayers.containsKey(playerName));
+							currentPlayers.put(playerName, playerGraphics);
+							zOrderedSprites.add(playerGraphics, playerGraphics.getZOrder());
+							// If the new playerGraphics is moving, create Mover and add it:
+							if (playerGraphics.hasPath()) {
+								tryStartMovement(playerGraphics);
+							} else if (playerGraphics.hasEmote()) {
+								tryStartAnimation(playerGraphics, playerGraphics.getEmote());
+							}
+						}
+					}
+				}
+			}
 		}
 	}
-
+	
 	/** locks movingPlayerGraphics, animatedPlayerGraphics, playerGraphics<br/>
 	 * Also starts walking animation. */
 	public void tryStartMovement(PlayerGraphics playerGraphics) {
@@ -528,37 +689,61 @@ public class Client implements MoverManager, AnimatorManager {
 		}
 	}
 	
-	/** locks currentPlayers, movingPlayerGraphics */
+	/** locks currentPlayers, movingPlayerGraphics, zOrderedSprites */
 	private void unloadMap() {
 		synchronized(currentPlayers) {
 			synchronized(movingPlayerGraphics) {
-				for (String playerName : currentPlayers.keySet()) {
-					PlayerGraphics playerGraphics = currentPlayers.get(playerName);
-					tryStopMovement(playerGraphics);
+				synchronized(zOrderedSprites) {
+					for (String playerName : currentPlayers.keySet()) {
+						PlayerGraphics playerGraphics = currentPlayers.get(playerName);
+						tryStopMovement(playerGraphics);
+					}
+					currentPlayers.clear();
+					activePlayerName = null;
+					currentMap = null;
+					zOrderedSprites.clear();
 				}
-				currentPlayers.clear();
-				activePlayerName = null;
-				currentMapName = null;
 			}
 		}
 	}
 	
-	/** locks currentPlayers, movingPlayerGraphics<br/>
+	/** locks currentPlayers, movingPlayerGraphics, zOrderedSprites<br/>
 	 * A new map will be loaded: Remove all movements and
 	 * playerGraphics and register them anew from the MapInfo */
 	public void setMap(BCSetMapOrder order) {
 		MapInfo mapInfo = order.getMapInfo();
 		synchronized(currentPlayers) {
 			synchronized(movingPlayerGraphics) {
-				unloadMap();
-				// everything is unloaded, now load:
-				currentMapName = mapInfo.mapName;
-				activePlayerName = order.getActivePlayerName();
-				for (String playerName2 : mapInfo.players.keySet()) {
-					GraphicalPlayerStatus status = mapInfo.players.get(playerName2);
-					PlayerGraphics playerGraphics = new PlayerGraphics(status, this);
-					currentPlayers.put(playerName2, playerGraphics);
-					tryStartMovement(playerGraphics);
+				synchronized(zOrderedSprites) {
+					unloadMap();
+					// everything is unloaded, now load:
+					currentMap = mapInfo.map;
+					assert(currentMap != null);
+					activePlayerName = order.getActivePlayerName();
+					// TODO: load decorations and create link sprites
+					if (currentMap.getDecoInfos() != null) {
+						for (GraphicalDecoStatus decoInfo : currentMap.getDecoInfos()) {
+							Decoration decoration = new Decoration(this, this, decoInfo);
+							zOrderedSprites.add(decoration, decoration.getZOrder());
+						}
+					}
+					if (currentMap.getLinks() != null) {
+						for (Link link : currentMap.getLinks()) {
+							GraphicalDecoStatus decoInfo = new GraphicalDecoStatus();
+							decoInfo.name = "link";
+							decoInfo.x = link.getSourceX();
+							decoInfo.y = link.getSourceY();
+							Decoration decoration = new Decoration(this, this, decoInfo);
+							zOrderedSprites.add(decoration, decoration.getZOrder());
+						}
+					}
+					for (String playerName2 : mapInfo.players.keySet()) {
+						GraphicalPlayerStatus status = mapInfo.players.get(playerName2);
+						PlayerGraphics playerGraphics = new PlayerGraphics(status, this, this);
+						currentPlayers.put(playerName2, playerGraphics);
+						zOrderedSprites.add(playerGraphics, playerGraphics.getZOrder());
+						tryStartMovement(playerGraphics);
+					}
 				}
 			}
 		}
@@ -569,7 +754,7 @@ public class Client implements MoverManager, AnimatorManager {
 		ClientStatus newStatus = order.getNewStatus();
 		if (newStatus == ClientStatus.disconnected) {
 			// Don't call disconnect() here as the serverRunnable cannot
-			// force its termination at this point. Instead
+			// force its own termination at this point. Instead
 			// we'll just close the input, causing this serverRunnable to
 			// call disconnect() in its main loop where it can terminate.
 			try {
@@ -593,129 +778,18 @@ public class Client implements MoverManager, AnimatorManager {
 		}
 	}
 	
+	
+	
+	public void mouseClick(Point point) {
+		Point field = clientSettings.pixelToMapField(point);
+		sendOrder(new CBMoveOrder(field.x, field.y));
+	}
+
+	// ################################################################################
+	// ################################################################################
 	// ################################################################################
 	
-	/** locks clientStatus, output<br/>
-	 *  Tries to send given ClientOrder to the own Butler, and returns 
-	 *  the success thereof as a boolean.*/
-	public boolean sendOrder(CBOrder c){
-		synchronized(clientStatus) {
-			if (clientStatus == ClientStatus.disconnected) {
-				logErrorMessage("Client: Couldn't send order since there's no connection!");
-				return false;
-			}
-			assert(output != null);
-			synchronized(output) {
-				try {
-					output.writeObject(c);
-				} catch (IOException e) {
-					logErrorMessage("Error while sending ClientOrder");
-					return false;
-				}
-				return true;
-			}
-		}
-	}
 
-
-	public boolean parseCommand(String commandPrefix, String[] commandSplitDetails) {
-		if (commandPrefix.equals("/c")) {
-			connect();
-			return true;
-		} else if (commandPrefix.equals("/i") && commandSplitDetails.length >= 2) {
-			String loginName = commandSplitDetails[0];
-			String loginPassword = commandSplitDetails[1];
-			sendOrder(new CBLoginOrder(loginName, loginPassword));
-			return true;
-		} else if (commandPrefix.equals("/o")) {
-			sendOrder(new CBLogoutOrder());
-			return true;
-		} else if (commandPrefix.equals("/x")) {
-			sendOrder(new CBDisconnectOrder());
-			return true;
-		} else if (commandPrefix.equals("/w") && commandSplitDetails.length >= 2) {
-			String receiver = commandSplitDetails[0];
-			String message = concatenateHelper(commandSplitDetails, 1);
-			sendOrder(new CBChatOrder(message, receiver));
-			return true;
-		} else if (commandPrefix.equals("/b") && commandSplitDetails.length >= 1) {
-			String message = concatenateHelper(commandSplitDetails, 0);
-			sendOrder(new CBChatOrder(message, null));
-			return true;
-		} else if (commandPrefix.equals("/l")) {
-			String playerName = commandSplitDetails[0];
-			sendOrder(new CBLoadPlayerOrder(playerName));
-			return true;
-		} else if (commandPrefix.equals("/u")) {
-			sendOrder(new CBUnloadPlayerOrder());
-			return true;
-		} else if (commandPrefix.equals("/n") && commandSplitDetails.length >= 1) {
-			String playerName = commandSplitDetails[0];
-			sendOrder(new CBCreatePlayerOrder(playerName));
-			return true;
-		} else if (commandPrefix.equals("/m") && commandSplitDetails.length >= 2) {
-			int walkX, walkY;
-			try {
-				walkX = Integer.parseInt(commandSplitDetails[0]);
-				walkY = Integer.parseInt(commandSplitDetails[1]);
-			} catch(NumberFormatException e) {
-				logErrorMessage("Error while parsing the numbers.");
-				return false;
-			}
-			sendOrder(new CBMoveOrder(walkX, walkY));
-			return true;
-		} else if (commandPrefix.equals("/e")) {
-			String emoteName = null;
-			if (commandSplitDetails.length >= 1) {
-				emoteName = commandSplitDetails[0];
-			}
-			sendOrder(new CBTriggerEmoteOrder(emoteName));
-			return true;
-		} else if (commandPrefix.equals("/s")) {
-			sendOrder(new CBServerSourceOrder());
-			return true;
-		}
-		
-		else if(commandPrefix.equals("/inv") && (commandSplitDetails.length == 4 || commandSplitDetails.length == 3 || commandSplitDetails.length == 1)){
-			if(commandSplitDetails[0].toUpperCase().equals("VIEW")){
-				sendOrder(new CBAccessInventoryOrder(InventoryType.VIEW, activePlayerName));
-			}else if(commandSplitDetails[0].toUpperCase().equals("ADD") && (commandSplitDetails.length == 3)){
-				try{
-					int itemID = Integer.parseInt(commandSplitDetails[1]);
-					int qnt = Integer.parseInt(commandSplitDetails[2]);
-					sendOrder(new CBAccessInventoryOrder(InventoryType.ADD, activePlayerName, itemID, qnt));
-				}catch(NumberFormatException e){
-					logErrorMessage("Error while parsing the numbers.");
-					return false;
-				}
-			}else if(commandSplitDetails[0].toUpperCase().equals("THROW") && (commandSplitDetails.length == 3)){
-				try{
-					int itemID = Integer.parseInt(commandSplitDetails[1]);
-					int qnt = Integer.parseInt(commandSplitDetails[2]);
-					sendOrder(new CBAccessInventoryOrder(InventoryType.THROW, activePlayerName, itemID, qnt));
-				}catch(NumberFormatException e){
-					logErrorMessage("Error while parsing the numbers.");
-					return false;
-				}
-			}else if(commandSplitDetails[0].toUpperCase().equals("GIVE") && (commandSplitDetails.length == 4)){
-				try{
-					int itemID = Integer.parseInt(commandSplitDetails[2]);
-					int qnt = Integer.parseInt(commandSplitDetails[3]);
-					sendOrder(new CBAccessInventoryOrder(InventoryType.GIVE, activePlayerName, commandSplitDetails[1], itemID, qnt));
-				}catch(NumberFormatException e){
-					logErrorMessage("Error while parsing the numbers.");
-					return false;
-				}
-			}
-			return true;
-		}
-		
-		else {
-			logErrorMessage("Command couldn't be interpreted.");
-			return false;
-		}
-		// TODO: handle further commands
-	}
 
 	/** locks movingPlayerGraphics, animatedPlayerGraphics <br/>
 	 * Unregisters the Mover for given playerGraphics after movement has stopped.
@@ -744,14 +818,23 @@ public class Client implements MoverManager, AnimatorManager {
 		}
 	}
 	
-	/** locks currentPlayers */
-	public ArrayList<PlayerGraphics> getAllGraphicsToDraw() {
-		ArrayList<PlayerGraphics> result = new ArrayList<PlayerGraphics>();
-		if (currentPlayers == null) return result;
-		synchronized(currentPlayers) {
-			for (PlayerGraphics playerGraphics : currentPlayers.values()) {
-				result.add(playerGraphics);
-			}
+	@Override
+	/** locks zOrderedSprites */
+	public void notifyZOrderChange(Sprite sprite, float oldValue, float newValue) {
+		System.out.println("notifyZOrderChange(): oldValue ="+oldValue+" newValue="+newValue);
+		synchronized(zOrderedSprites) {
+			assert(zOrderedSprites.contains(sprite, oldValue));
+			zOrderedSprites.remove(sprite, oldValue);
+			zOrderedSprites.add(sprite, newValue);
+		}
+	}
+	
+	/** locks zOrderedSprites */
+	public ArrayList<Sprite> getAllSpritesToDraw() {
+		ArrayList<Sprite> result = new ArrayList<Sprite>();
+		if (zOrderedSprites == null) return result;
+		synchronized(zOrderedSprites) {
+			result = zOrderedSprites.values();
 		}
 		return result;
 	}

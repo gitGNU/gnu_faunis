@@ -1,4 +1,4 @@
-/* Copyright 2012 Simon Ley alias "skarute"
+/* Copyright 2012, 2013 Simon Ley alias "skarute"
  * 
  * This file is part of Faunis.
  * 
@@ -32,6 +32,7 @@ import java.util.Set;
 import client.Bone;
 import client.Client;
 import client.AnimationData;
+import client.OffsetImage;
 
 import communication.enums.AniCompoType;
 import communication.enums.AniEndType;
@@ -41,7 +42,8 @@ import communication.enums.Direction;
 
 
 public class GraphicsContentManager {
-	private String graphicsPath;
+	private String playerGraphicsPath;
+	private String decoGraphicsPath;
 	private String fileEnding;
 	private HashMap<CharacterClass,
 			HashMap<String, // animation
@@ -53,11 +55,13 @@ public class GraphicsContentManager {
 	private HashMap<CharacterClass, HashMap<String, AnimationData>> availableAnimationsAndData;
 	private HashMap<CharacterClass, List<String>> availableFaces;
 	private HashMap<CharacterClass, AniCompoType> compositionTypes;
+	private HashMap<String, OffsetImage> decorations;
 	
 	/** Don't forget to call loadResourcesForClient() / loadResourcesForServer()
 	 * afterwards! */
-	public GraphicsContentManager(String graphicsPath, String fileEnding) {
-		this.graphicsPath = graphicsPath;
+	public GraphicsContentManager(String playerGraphicsPath, String decoGraphicsPath, String fileEnding) {
+		this.playerGraphicsPath = playerGraphicsPath;
+		this.decoGraphicsPath = decoGraphicsPath;
 		this.fileEnding = fileEnding;
 	}
 	
@@ -75,7 +79,9 @@ public class GraphicsContentManager {
 		loadAvailableAnimations(true);
 		availableFaces = new HashMap<CharacterClass, List<String>>();
 		loadAvailableFaces();
-		loadImages();
+		loadBones();
+		decorations = new HashMap<String, OffsetImage>();
+		loadDecorations();
 	}
 
 	/** Must be called by server after calling the content manager's constructor,
@@ -123,7 +129,7 @@ public class GraphicsContentManager {
 	 * to be initialised. */
 	private void loadAvailableAnimations(boolean countFrames) {
 		for (CharacterClass type : CharacterClass.values()) {
-			File typeDirectory = new File(graphicsPath+type.toString());
+			File typeDirectory = new File(playerGraphicsPath+type.toString());
 			File[] subdirs = typeDirectory.listFiles(Client.directoryFilter);
 			HashMap<String, AnimationData> animationAndData = new HashMap<String, AnimationData>();
 			if (subdirs != null) {
@@ -134,10 +140,10 @@ public class GraphicsContentManager {
 						if (countFrames) {
 							String prefix;
 							if (compositionTypes.get(type) == AniCompoType.limbed)
-								prefix = graphicsPath+type+"/"
+								prefix = playerGraphicsPath+type+"/"
 													+animation+"/body/down";
 							else
-								prefix = graphicsPath+type+"/"
+								prefix = playerGraphicsPath+type+"/"
 													+animation+"/down";
 							numFrames = countAvailableFrames(prefix);
 							System.out.println("Animation "+animation+" of "+type+" has "+numFrames+" frames.");
@@ -154,7 +160,7 @@ public class GraphicsContentManager {
 	
 	private void loadAvailableFaces() {
 		for (CharacterClass type : CharacterClass.values()) {
-			File faceDirectory = new File(graphicsPath+type.toString()+"/faces");
+			File faceDirectory = new File(playerGraphicsPath+type.toString()+"/faces");
 			File[] subdirs = faceDirectory.listFiles(Client.directoryFilter);
 			if (subdirs == null) continue;
 			List<String> faceList = new ArrayList<String>();
@@ -168,7 +174,7 @@ public class GraphicsContentManager {
 	
 	private void loadCompositionTypes() {
 		for (CharacterClass type : CharacterClass.values()) {
-			File bodyDirectory = new File(graphicsPath+type.toString()+"/stand/body");
+			File bodyDirectory = new File(playerGraphicsPath+type.toString()+"/stand/body");
 			if (bodyDirectory.isDirectory() && bodyDirectory.exists()) {
 				System.out.println(type+" has limbed graphics.");
 				compositionTypes.put(type, AniCompoType.limbed);
@@ -210,13 +216,26 @@ public class GraphicsContentManager {
 		drawingOrders.put(Direction.up, upList);
 	}
 	
-	private void loadImages() {
+	private void loadDecorations() {
+		File decorationDirectory = new File(decoGraphicsPath);
+		for (String decoName : decorationDirectory.list()) {
+			if (!decoName.startsWith(".") && decoName.endsWith(fileEnding)) {
+				String decoPath = decoGraphicsPath+decoName;
+				String decoName2 = decoName.substring(0,
+										decoName.length()-fileEnding.length());
+				OffsetImage decoration = new OffsetImage(decoPath);
+				decorations.put(decoName2, decoration);
+			}
+		}
+	}
+	
+	private void loadBones() {
 		for (CharacterClass type : CharacterClass.values()) {
 			AniCompoType compoType = compositionTypes.get(type);
 			for (String animation : getAvailableAnimations(type)) {
 				AnimationData animationData = getAnimationData(type, animation);
 				int countFrames = animationData.numberOfFrames;
-				String prefixString = graphicsPath+type+"/"+animation+"/";
+				String prefixString = playerGraphicsPath+type+"/"+animation+"/";
 				for (BodyPart part : BodyPart.values()) {
 					if (compoType == AniCompoType.compact
 							&& part != BodyPart.compact)
@@ -279,7 +298,7 @@ public class GraphicsContentManager {
 	}
 	
 	private AniEndType determineEndType(CharacterClass type, String animation) {
-		File settingsFile = new File(graphicsPath+type+"/"+animation
+		File settingsFile = new File(playerGraphicsPath+type+"/"+animation
 										+"/aniSettings.txt");
 		assert(settingsFile.exists());
 		BufferedReader reader;
@@ -324,5 +343,9 @@ public class GraphicsContentManager {
 		HashMap<Direction, Bone> map3 = map2.get(part);
 		if (map3 == null) return null;
 		return map3.get(dir);
+	}
+	
+	public OffsetImage getDecoImage(String name) {
+		return decorations.get(name);
 	}
 }

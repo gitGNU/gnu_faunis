@@ -1,4 +1,4 @@
-# Copyright 2012 Simon Ley alias "skarute"
+# Copyright 2012, 2013 Simon Ley alias "skarute"
 #
 # This file is part of Faunis.
 # 
