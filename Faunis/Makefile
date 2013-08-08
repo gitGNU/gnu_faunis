@@ -20,14 +20,14 @@ JAVAC = javac -sourcepath ./src/ -classpath ./bin/ -d ./bin/
 JAVA = java -enableassertions -classpath ./bin/
 
 compile:
-	$(JAVAC) ./src/client/Client.java
-	$(JAVAC) ./src/server/MainServer.java
+	$(JAVAC) ./src/clientSide/client/Client.java
+	$(JAVAC) ./src/serverSide/MainServer.java
 
 runClient:
-	$(JAVA) client/Client
+	$(JAVA) clientSide/client/Client
 
 runServer:
-	$(JAVA) server/MainServer
+	$(JAVA) serverSide/MainServer
 
 clean:
 	rm -rf ./bin/*
