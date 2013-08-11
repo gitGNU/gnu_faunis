@@ -59,7 +59,7 @@ public class Robot implements Runnable {
 		} else {
 			int rndInt = random.nextInt(18);
 			if (rndInt <= 9) {
-				// do nothing
+				delay(); // do nothing
 			}
 			else if (rndInt >= 10 && rndInt <= 14) {
 				int x = random.nextInt(30)+1;
@@ -88,17 +88,32 @@ public class Robot implements Runnable {
 	private void decreaseStatus(boolean wait) {
 		switch(clientStatus()) {
 			case loggedOut:
-				client.parseCommand("/x", new String[0]);
-				if (wait) waitForStatus(ClientStatus.disconnected);
+				if (!wait)
+					client.parseCommand("/x", new String[0]);
+				else
+					while (clientStatus() != ClientStatus.disconnected) {
+						client.parseCommand("/x", new String[0]);
+						delay();
+					}
 				break;
 			case noCharLoaded:
-				client.parseCommand("/o", new String[0]);
-				if (wait) waitForStatus(ClientStatus.loggedOut);
+				if (!wait)
+					client.parseCommand("/o", new String[0]);
+				else
+					while (clientStatus() != ClientStatus.loggedOut) {
+						client.parseCommand("/o", new String[0]);
+						delay();
+					}
 				break;
 			case fighting:
 			case exploring:
-				client.parseCommand("/u", new String[0]);
-				if (wait) waitForStatus(ClientStatus.noCharLoaded);
+				if (!wait)
+					client.parseCommand("/u", new String[0]);
+				else
+					while (clientStatus() != ClientStatus.noCharLoaded) {
+						client.parseCommand("/u", new String[0]);
+						delay();
+					}
 				break;
 			case disconnected:
 				break;
@@ -108,30 +123,43 @@ public class Robot implements Runnable {
 	private void increaseStatus(boolean wait) {
 		switch(clientStatus()) {
 			case disconnected:
-				client.parseCommand("/c", new String[0]);
-				if (wait) waitForStatus(ClientStatus.loggedOut);
+				if (!wait)
+					client.parseCommand("/c", new String[0]);
+				else
+					while (clientStatus() != ClientStatus.loggedOut) {
+						client.parseCommand("/c", new String[0]);
+						delay();
+					}
 				break;
 			case loggedOut:
-				client.parseCommand("/i", new String[]{username, ""});
-				if (wait) waitForStatus(ClientStatus.noCharLoaded);
+				if (!wait)
+					client.parseCommand("/i", new String[]{username, ""});
+				else
+					while (clientStatus() != ClientStatus.noCharLoaded) {
+						client.parseCommand("/i", new String[]{username, ""});
+						delay();
+					}
 				break;
 			case noCharLoaded:
-				client.parseCommand("/l", new String[]{playernames[0]});
-				if (wait) waitForStatus(ClientStatus.exploring);
-				break;
+				if (!wait)
+					client.parseCommand("/l", new String[]{playernames[0]});
+				else
+					while (clientStatus() != ClientStatus.exploring) {
+						client.parseCommand("/l", new String[]{playernames[0]});
+						delay();
+					}
+				break;				
 			case fighting:
 			case exploring:
 				break;
 		}
 	}
 	
-	private void waitForStatus(ClientStatus status) {
-		while (clientStatus() != status) {
-			try {
-				Thread.sleep(1);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
+	private void delay() {
+		try {
+			Thread.sleep(300);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
 		}
 	}
 	

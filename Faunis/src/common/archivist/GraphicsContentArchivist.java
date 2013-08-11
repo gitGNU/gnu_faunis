@@ -18,6 +18,8 @@
  */
 package common.archivist;
 
+import java.awt.GraphicsConfiguration;
+import java.awt.Transparency;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileFilter;
@@ -31,6 +33,7 @@ import java.util.Map;
 import java.util.Properties;
 
 import javax.imageio.ImageIO;
+import javax.swing.JFrame;
 
 import clientSide.animation.AnimationData;
 
@@ -93,7 +96,11 @@ public class GraphicsContentArchivist {
 			return resolveImage(filePathWithoutEnding);
 		} else {
 			try {
-				BufferedImage image = ImageIO.read(graphicFile);
+				BufferedImage rawImage = ImageIO.read(graphicFile);
+				GraphicsConfiguration graphicsConfiguration = new JFrame().getGraphicsConfiguration();
+				BufferedImage image = graphicsConfiguration.createCompatibleImage(rawImage.getWidth(), rawImage.getHeight(),
+						Transparency.TRANSLUCENT);
+				image.getGraphics().drawImage(rawImage, 0, 0, null);
 				return new ResolvedImageResult(image, path);
 			} catch(IOException e) {
 				e.printStackTrace();

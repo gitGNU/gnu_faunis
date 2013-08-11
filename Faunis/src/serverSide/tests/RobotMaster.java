@@ -24,6 +24,8 @@ import java.util.Random;
 import serverSide.ServerSettings;
 
 public class RobotMaster {
+	private static int robotsCount = 1;
+	private static int playersPerRobot = 3;
 	private static ServerSettings serverSettings = new ServerSettings();
 	private static ArrayList<Robot> robots;
 	public static void main(String[] args) {
@@ -40,9 +42,7 @@ public class RobotMaster {
 	private static void initialise() {
 		robots = new ArrayList<Robot>();
 		Random random = new Random(5l);
-		int robotsCount = 5;
-		int playersPerRobot = 3;
-		createTestServerData(robotsCount, playersPerRobot);
+		createTestServerData();
 		for (int robotIndex = 0; robotIndex < robotsCount; robotIndex++) {
 			String username = "robot"+robotIndex;
 			String[] playernames = new String[playersPerRobot];
@@ -54,7 +54,7 @@ public class RobotMaster {
 		}
 	}
 	
-	private static void createTestServerData(int robotsCount, int playersPerRobot) {
+	private static void createTestServerData() {
 		TestServerDataFactory.createTestServerData(serverSettings, robotsCount, playersPerRobot);
 	}
 }

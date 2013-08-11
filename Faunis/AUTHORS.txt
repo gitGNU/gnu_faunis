@@ -1,5 +1,5 @@
 Simon Ley:
-- Everything up to revision 10 (resp. Faunis release 0.3) that is not mentioned below
+- Everything up to the newest version that is not mentioned below
 
 Paul Moises Turcato:
 - Several classes about inventory, esp. InventoryManager
