@@ -1,4 +1,4 @@
-# Copyright 2012, 2013 Simon Ley alias "skarute"
+# Copyright 2012 - 2014 Simon Ley alias "skarute"
 #
 # This file is part of Faunis.
 # 
@@ -16,12 +16,23 @@
 # Public License along with Faunis. If not, see
 # <http://www.gnu.org/licenses/>.
 
-JAVAC = javac -sourcepath ./src/ -classpath ./bin/ -d ./bin/
-JAVA = java -enableassertions -classpath ./bin/
+MUX_DIR=./MuxInputStream/
+MUX_SRC=$(MUX_DIR)src/
+MUX_BIN=$(MUX_DIR)bin/
+
+FAUNIS_DIR=./Faunis/
+FAUNIS_SRC=$(FAUNIS_DIR)src/
+FAUNIS_BIN=$(FAUNIS_DIR)bin/
+
+JAVAC_MUX = javac -sourcepath $(MUX_SRC) -classpath $(MUX_BIN):junit.jar -d $(MUX_BIN)
+JAVAC_FAUNIS = javac -sourcepath $(FAUNIS_SRC) -classpath $(FAUNIS_BIN):$(MUX_BIN) -d $(FAUNIS_BIN)
+JAVA = java -enableassertions -classpath $(FAUNIS_BIN):$(MUX_BIN)
 
 compile:
-	$(JAVAC) ./src/clientSide/client/Client.java
-	$(JAVAC) ./src/serverSide/MainServer.java
+	$(JAVAC_MUX) $(MUX_SRC)mux/MuxObjectInputStream.java
+	$(JAVAC_FAUNIS) $(FAUNIS_SRC)clientSide/client/Client.java
+	$(JAVAC_FAUNIS) $(FAUNIS_SRC)serverSide/MainServer.java
+	$(JAVAC_FAUNIS) $(FAUNIS_SRC)serverSide/tests/RobotMaster.java
 
 runClient:
 	$(JAVA) clientSide/client/Client
@@ -29,5 +40,9 @@ runClient:
 runServer:
 	$(JAVA) serverSide/MainServer
 
+runRobots:
+	$(JAVA) serverSide/tests/RobotMaster
+
 clean:
-	rm -rf ./bin/*
+	rm -rf $(FAUNIS_BIN)*
+	rm -rf $(MUX_BIN)*

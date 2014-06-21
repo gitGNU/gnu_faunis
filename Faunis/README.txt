@@ -1,4 +1,4 @@
-Copyright 2012, 2013 Simon Ley alias "skarute"
+Copyright 2012 - 2014 Simon Ley alias "skarute"
 This documentation is published under the GNU Free Documentation
 License v1.3 or later. You can find a copy of this license in
 "fdl-1.3.txt" or at <http://www.gnu.org/licenses/>.
@@ -7,7 +7,7 @@ License v1.3 or later. You can find a copy of this license in
 Faunis 0.3 - a free furry MMORPG
 ########################################
  
-All files of Faunis are copyrighted: Copyright 2012, 2013 Simon Ley alias "skarute"
+All files of Faunis are copyrighted: Copyright 2012 - 2014 Simon Ley alias "skarute"
 All files of Faunis are licensed under the GNU AGPL v3 or later, except for
 the documentation files "README.txt", "devdoc.txt" and "windows.txt",
 which are licensed under the GNU FDL v1.3 or later.

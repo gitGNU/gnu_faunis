@@ -1,3 +1,3 @@
 cd /d "%~dp0"
-java -ea -cp ./bin/ serverSide/MainServer
+java -ea -cp ./Faunis/bin/ serverSide/MainServer
 pause
