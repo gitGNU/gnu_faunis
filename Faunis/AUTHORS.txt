@@ -3,3 +3,6 @@ Simon Ley:
 
 Paul Moises Turcato:
 - Several classes about inventory, esp. InventoryManager
+
+Bloodhound Omega:
+- The main title image found in "clientData/graphics/guiGraphics/fullscreen_title.png"
