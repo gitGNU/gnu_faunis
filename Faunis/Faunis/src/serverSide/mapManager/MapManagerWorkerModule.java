@@ -1,42 +1,45 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
  */
 package serverSide.mapManager;
 
+import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 
 import mux.MuxObjectInputStream;
 import mux.MuxObjectInputStream.BlockingQueueRunnable;
-import clientSide.animation.AnimationData;
 import serverSide.Result;
 import serverSide.butler.Butler;
 import serverSide.butlerToMapmanOrders.*;
 import serverSide.mapmanToButlerOrders.MBChatMessageOrder;
 import serverSide.mapmanToButlerOrders.MBErrorMessageOrder;
 import serverSide.mapmanToButlerOrders.MBMapInfoOrder;
-import serverSide.player.Player;
+import serverSide.player.ServerPlayer;
 import common.Logger;
 import common.MapInfo;
 import common.enums.AniEndType;
 import common.enums.CharacterClass;
-import common.graphics.GraphicsContentManager;
+import common.graphics.graphicsContentManager.GraphicsContentManager;
+import common.graphics.osseous.BoneCollection;
+import common.graphics.osseous.NotFoundException;
+import common.graphics.osseous.path.ClearPath;
 import common.modules.workerModule.WorkerModule;
 import common.movement.Path;
 import common.movement.PathFactory;
@@ -52,7 +55,7 @@ public class MapManagerWorkerModule extends WorkerModule<MapManager> {
 				new BlockingQueue[] {queue}, new Class[] {BMOrder.class}),
 			  "MapmanThread[name="+name+"]");
 	}
-	
+
 	@SuppressWarnings("unchecked")
 	public void put(BMOrder order) {
 		BlockingQueueRunnable queueRunnable;
@@ -75,53 +78,77 @@ public class MapManagerWorkerModule extends WorkerModule<MapManager> {
 			MapInfo mapInfo = parent.getMapInfo();
 			((BMMapInfoOrder) order).getSource().put(new MBMapInfoOrder(parent, mapInfo));
 		}
-		else if (order instanceof BMRegisterOrder)
+		else if (order instanceof BMRegisterOrder) {
 			registerPlayer((BMRegisterOrder) order);
-		else if (order instanceof BMUnregisterOrder)
+		} else if (order instanceof BMUnregisterOrder) {
 			unregisterPlayer((BMUnregisterOrder) order);
-		else if (order instanceof BMMoveOrder)
+		} else if (order instanceof BMMoveOrder) {
 			movePlayer((BMMoveOrder) order);
-		else if (order instanceof BMChatMessageOrder)
+		} else if (order instanceof BMChatMessageOrder) {
 			bMChatMessageOrder((BMChatMessageOrder) order);
-		else if (order instanceof BMTriggerAnimationOrder)
+		} else if (order instanceof BMTriggerAnimationOrder) {
 			bMTriggerAnimationOrder((BMTriggerAnimationOrder) order);
+		} else if (order instanceof BMSetMoodOrder) {
+			bMSetMoodOrder((BMSetMoodOrder) order);
+		}
 		// TODO Handle further orders
 	}
-	
+
 	void registerPlayer(BMRegisterOrder order) {
-		Player player = order.getPlayer();
+		ServerPlayer player = order.getPlayer();
 		Butler source = order.getSource();
 		parent.playerModule.add(player, source, order);
 		System.out.println("dealt with BMRegisterOrder.");
 		order.setDone(true);
 	}
-	
+
 	void unregisterPlayer(BMUnregisterOrder order) {
-		Player player = order.getPlayer();
+		ServerPlayer player = order.getPlayer();
 		parent.playerModule.remove(player, order);
 		order.setDone(true);
 	}
 	
+	private void bMSetMoodOrder(BMSetMoodOrder order) {
+		parent.playerModule.setMood(order.getPlayer(), order.getMood());
+		order.setDone(true);
+	}
+
 	private void bMTriggerAnimationOrder(BMTriggerAnimationOrder order) {
 		// determine if animation is valid for given player type:
-		Player player = order.getPlayer();
+		ServerPlayer player = order.getPlayer();
 		CharacterClass type = player.getType();
 		String animation = order.getAnimation();
 		if (animation == null || animation.equals("")) {
 			// if an animation had been stored, delete it and notify all butlers
 			parent.playerModule.deleteAnimation(player);
+			order.setDone(true);
 			return;
 		}
 		GraphicsContentManager contentManager = parent.parent.getGraphicsContentManager();
-		Set<String> animations = contentManager.getAvailableAnimations(type);
-		if (!animations.contains(animation)) {
+		Set<String> animations = null;
+		try {
+			animations = contentManager.getAvailableAnimations(type);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		} catch (NotFoundException e) {
+		}
+		if (animations == null || !animations.contains(animation)) {
 			order.getSource().put(new MBErrorMessageOrder(parent, "Animation is invalid!"));
+			order.setDone(true);
 			return;
 		}
 		// determine animation's AniEndType:
-		AnimationData animationData = contentManager.getAnimationData(type, animation);
-		assert(animationData != null);
-		AniEndType endType = animationData.endType;
+		BoneCollection collection;
+		try {
+			collection = (BoneCollection) contentManager.playerGraphicsContentManager(
+			).resolve(new ClearPath(type.toString(), animation));
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		} catch (NotFoundException e) {
+			throw new RuntimeException(e);
+		}
+
+		AniEndType endType = AniEndType.valueOf(collection.getBequeathedProperty("endType"));
 		if (endType != AniEndType.revert) {
 			// store animation in player and notify all
 			parent.playerModule.storeAnimation(player, animation);
@@ -129,9 +156,10 @@ public class MapManagerWorkerModule extends WorkerModule<MapManager> {
 			// fire and forget
 			parent.playerModule.fireAnimation(player, animation);
 		}
+		order.setDone(true);
 	}
 
-	
+
 	private void bMChatMessageOrder(BMChatMessageOrder order) {
 		Logger.log("Mapman forwards chat message");
 		order.setDone(true);
@@ -142,7 +170,7 @@ public class MapManagerWorkerModule extends WorkerModule<MapManager> {
 			return;
 		}
 		// else find the butler that corresponds to playerName
-		Player player;
+		ServerPlayer player;
 		player = parent.playerNameToPlayer.get(playerName);
 		if (player != null) {
 			Butler butler;
@@ -162,10 +190,10 @@ public class MapManagerWorkerModule extends WorkerModule<MapManager> {
 			butler.put(new MBChatMessageOrder(null, order));
 		}
 	}
-	
+
 	private void movePlayer(final BMMoveOrder order) {
 		assert(order != null);
-		final Player player = order.getPlayer();
+		final ServerPlayer player = order.getPlayer();
 		assert(parent.registeredPlayers.containsKey(player));
 		// stop possible earlier movement:
 		parent.moverModule.tryStop(player);
@@ -173,8 +201,9 @@ public class MapManagerWorkerModule extends WorkerModule<MapManager> {
 		parent.playerModule.deleteAnimation(player);
 		// if we are already at our target then return:
 		if (order.getXTarget() == player.getX()
-			&& order.getYTarget() == player.getY())
+			&& order.getYTarget() == player.getY()) {
 			return;
+		}
 		// Start Movement:
 		// build path and set its reference in the player object:
 		Path path = PathFactory.createAirlinePath(player.getX(), player.getY(),

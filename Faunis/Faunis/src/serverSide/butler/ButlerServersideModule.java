@@ -1,17 +1,17 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -40,12 +40,12 @@ import common.butlerToClientOrders.BCSetMapOrder;
 
 public class ButlerServersideModule {
 	private Butler parent;
-	
+
 	@SuppressWarnings("hiding")
 	public void init(Butler parent) {
 		this.parent = parent;
 	}
-	
+
 	protected void notifyTermination() {
 		parent.shutdown();
 	}
@@ -74,7 +74,7 @@ public class ButlerServersideModule {
 			}
 			// TODO: Handle further serverside orders
 	}
-	
+
 	void clientChatMessage(MBChatMessageOrder order) {
 		String toName = order.getToPlayername();
 		boolean isBroadcast = (toName == null || toName.equals(""));
@@ -82,23 +82,23 @@ public class ButlerServersideModule {
 													order.getFromPlayername(),
 													isBroadcast));
 	}
-	
+
 	void clientAddChar(MBAddCharOrder order) {
 		parent.clientsideWorker.sendOrderToClient(new BCAddCharOrder(order));
 	}
-	
+
 	void clientChangeChar(MBChangeCharOrder order) {
 		parent.clientsideWorker.sendOrderToClient(new BCChangeCharOrder(order));
 	}
-	
+
 	void clientRemoveChar(MBRemoveCharOrder order) {
 		parent.clientsideWorker.sendOrderToClient(new BCRemoveCharOrder(order));
 	}
-	
+
 	void clientMapInfo(MBMapInfoOrder order) {
 		parent.clientsideWorker.sendOrderToClient(new BCSetMapOrder(order, parent.activePlayer.getName()));
 	}
-	
+
 	void changeMapman(MBCharAtOtherMapmanOrder order) {
 		MapManager oldMapman = order.getSource();
 		assert(parent.activeMapman == oldMapman);
@@ -110,7 +110,7 @@ public class ButlerServersideModule {
 		addPlayerToMapman(newMapman, true);
 		parent.activeMapman = newMapman;
 	}
-	
+
 	/**
 	 * Registers the active player at given mapman.
 	 * By doing so, the mapman will consequently send a MBMapInfoOrder
@@ -122,7 +122,7 @@ public class ButlerServersideModule {
 		mapman.put(order);
 		order.waitUntilDone();
 	}
-	
+
 	void removePlayerFromMapman(MapManager mapman, boolean removePlayerMapEntry) {
 		assert(parent.activePlayer != null);
 		assert(mapman != null);

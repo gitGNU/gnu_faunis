@@ -20,6 +20,40 @@ Playable characters are represented by the Player class on the server side and b
 There is the Client class which represents the main client functionality and has the main method. The user interface is represented by the class GraphWin (basic gaming interface), GameWindow (specialised for Faunis functionality) and MenuManager (manages the menu and its functionality).
 
 2.1.1   Animation
+
+Graphics directory:
+
+Each subdirectory is a
+- bone if it contains a bone.properties file. The bone's name is the directory's name.
+- bone collection if it doesn't.
+
+A bone collection consists of:
+- bones and bone collections
+- an optional collection.properties file where the following can be stored:
+  - meta information about the bone collection
+  - bone properties that are inherited recursively to all subordinate bones (bones can override this by defining the property themselves)
+
+A bone consists of:
+- a redirect to another bone via relative path (bone.properties["redirectBone"]),
+- or all of the following:
+  * one or multiple frames (image0 ... imageN); the number of frames is set by bone.properties["numberOfFrames"]; if numberOfFrames is 0 or not defined, the bone is treated as a still image / non-animation
+  * an animation end type and a duration per frame if it is animated; this is set by bone.properties["endType"] and bone.properties["millisecsPerFrame"]; the former must be one of "revert" (return to default standing animation), "repeat" (repeat endlessly) or "end" (stay in the last frame), while the latter must be a value in milliseconds
+
+A frame N consists of
+- imageN.properties redirecting to another frame via relative path (imageN.properties["redirectFrame"]), or
+- imageN.png and imageN.mask.png containing image and offset data.
+
+A bone's redirection path should look like "a/b/c" where a and b are f. ex. the ancestor bone collections of bone c. You can use ".." to go one level up in the hierarchy, and "..n" with some integer n as a placeholder for the n-th ancestor's name. Thus, "..0" would insert the current bone's name and "..1" its direct parent's name.
+Example: We have the hierarchy "bear > stand > left" and "bear > walk > left" where the two "left" are bones. Now we are at the latter one which redirects to the former one. Its redirection path would be "../../stand/..0". We could also have said "../../stand/left", it's just an abbreviation.
+
+A frame's redirection path is almost like a bone's redirection path, however its form is "a/b/c/n" where c is the bone whose frames should be used and n is a frame number. You can also write "x" for the frame number, so that the the current frame number is inserted there.
+
+An offset in file imageN.mask.png is a coloured pixel, whereas the color indicates its ID. Bones can be linked together via offsets. offset ID 0 is the "root" / "origin" offset, indicating where the bone was linked from. The exact meaning of the offset IDs, the bone collection structure and how bones are drawn together is not defined by the bones themselves, but by the GraphicsContentManager.
+
+A bone properties file can optionally define these keys:
+- mirrorHorizontally: if set to true, horizontally mirrors the (redirected) image
+- replaceOffsets: a comma separated enumeration of offset replacements of the form "a/b, c/d, ..." where offset no. a replaces offset no. b, offset no. c replaces offset no. d, etc. . You can also write "a//b" if you want to swap the offsets for IDs a and b.
+
 The more complicated part on the client side is the animation stuff: A character frame can be drawn as a whole (compact AniCompoType) or consist of separate limb images (limbed AniCompoType). The compact style is easier to create (since even if you decide to isolate the frame into single limbs, you will have to draw it as a whole anyway just to see if the limbs are proportional), but the limbed style has the advantage that later the character can keep its facial expression during animations, amongst others. The joints of the limbs are marked by specially coloured pixels.
 All frames that form one animation cycle are stored in one Bone instance, which therefore is determined by character class, animation / animation state, body part and direction.
 An animation can have different termination behaviour: It can simply return to the default standing animation (revert AniEndType), it can be repeated endlessly (repeat AniEndType), or it can stay in the last frame (end AniEndType).

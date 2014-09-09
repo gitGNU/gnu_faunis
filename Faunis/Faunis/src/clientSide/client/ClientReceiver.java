@@ -1,17 +1,17 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -22,24 +22,24 @@ import java.util.List;
 import java.util.Map.Entry;
 
 import clientSide.graphics.Decoration;
-import clientSide.player.PlayerGraphics;
+import clientSide.player.ClientPlayer;
 import common.Link;
 import common.Logger;
 import common.MapInfo;
 import common.butlerToClientOrders.*;
 import common.enums.ClientStatus;
 import common.graphics.GraphicalDecoStatus;
-import common.graphics.GraphicalPlayerStatus;
+import common.graphics.PlayerData;
 
 
 public class ClientReceiver {
 	private Client parent;
-	
+
 	@SuppressWarnings("hiding")
 	public void init(Client parent) {
 		this.parent = parent;
 	}
-	
+
 	public void handleMessage(BCOrder order) {
 		assert(order != null);
 		if (order instanceof BCAddCharOrder) {
@@ -62,55 +62,53 @@ public class ClientReceiver {
 			List<String> playerNames = ((BCOwnPlayersInfoOrder) order).getPlayerNames();
 			parent.logSystemMessage("Your players are: "+playerNames);
 		}
-		
+
 		else if(order instanceof BCSendInventoryOrder){
 			parent.showInventory((BCSendInventoryOrder) order);
 		}
-		
+
 		else {
 			Logger.log("Received unknown server order!");
 		}
 		// TODO: Implement the handling of further server orders
 	}
-	
-	
-	
-	/** locks many things */
+
+
+
 	public void addChar(BCAddCharOrder order) {
-		GraphicalPlayerStatus status = order.getGraphStatus();
-		PlayerGraphics playerGraphics = new PlayerGraphics(status, parent, parent);
+		PlayerData status = order.getGraphStatus();
+		ClientPlayer player = new ClientPlayer(status, parent, parent);
 		String playerName = order.getPlayerName();
-		parent.playerModule.add(playerName, playerGraphics, null);
+		parent.playerModule.add(playerName, player, null);
 	}
-	
-	/** locks many things */
+
 	public void removeChar(BCRemoveCharOrder order) {
 		String playerName = order.getPlayerName();
 		parent.playerModule.remove(playerName, null);
 	}
-	
-	/** locks many things */
+
 	public void changeChar(BCChangeCharOrder order) {
-		GraphicalPlayerStatus status = order.getGraphStatus();
-		PlayerGraphics newPlayerGraphics = new PlayerGraphics(status, parent, parent);
+		PlayerData status = order.getGraphStatus();
+		ClientPlayer newPlayer = new ClientPlayer(status, parent, parent);
 		String playerName = order.getPlayerName();
-		parent.playerModule.removeAndAdd(playerName, newPlayerGraphics, null , null);
+		parent.playerModule.removeAndAdd(playerName, newPlayer, null , null);
 	}
-	
-	
-	
+
+
+
 	/** unloads map if possible */
 	void unloadMap() {
 		parent.moverModule.tryStopAll();
-		parent.currentPlayerGraphics.clear();
+		parent.currentPlayers.clear();
 		parent.activePlayerName = null;
 		parent.currentMap = null;
 		parent.zOrderedDrawables.clear();
 	}
-	
-	/** locks currentPlayerGraphics, movingPlayerGraphics, animatedPlayerGraphics, zOrderedDrawables<br/>
+
+	/**
 	 * A new map will be loaded: Remove all movements and
-	 * playerGraphics and register them anew from the MapInfo */
+	 * players and register them anew from the MapInfo
+	 */
 	public void setMap(final BCSetMapOrder order) {
 		final MapInfo mapInfo = order.getMapInfo();
 		unloadMap();
@@ -137,16 +135,14 @@ public class ClientReceiver {
 			}
 		}
 		assert(mapInfo.players != null);
-		for (Entry<String, GraphicalPlayerStatus> entry : mapInfo.players.entrySet()) {
+		for (Entry<String, PlayerData> entry : mapInfo.players.entrySet()) {
 			String playerName = entry.getKey();
-			GraphicalPlayerStatus status = entry.getValue();
-			PlayerGraphics playerGraphics = new PlayerGraphics(status, parent, parent);
-			parent.playerModule.add(playerName, playerGraphics, null);
+			PlayerData status = entry.getValue();
+			ClientPlayer player = new ClientPlayer(status, parent, parent);
+			parent.playerModule.add(playerName, player, null);
 		}
 	}
-	
-	/** locks clientStatusMutexLock, movingPlayerGraphics,
-	 *  animatedPlayerGraphics, zOrderedGraphics */
+
 	public void setClientStatusOrder(BCSetClientStatusOrder order) {
 		ClientStatus newStatus = order.getNewStatus();
 		if (newStatus == ClientStatus.disconnected) {

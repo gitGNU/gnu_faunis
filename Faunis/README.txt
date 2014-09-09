@@ -4,7 +4,7 @@ License v1.3 or later. You can find a copy of this license in
 "fdl-1.3.txt" or at <http://www.gnu.org/licenses/>.
 
 ########################################
-Faunis 0.3 - a free furry MMORPG
+Faunis 0.4 - a free furry MMORPG
 ########################################
  
 All files of Faunis are copyrighted: Copyright 2012 - 2014 Simon Ley alias "skarute"

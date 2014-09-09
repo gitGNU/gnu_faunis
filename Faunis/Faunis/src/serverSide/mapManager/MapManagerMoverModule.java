@@ -1,17 +1,17 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -22,23 +22,23 @@ import java.util.Map;
 
 import serverSide.mapmanToButlerOrders.MBChangeCharOrder;
 import serverSide.mapmanToButlerOrders.MBCharAtOtherMapmanOrder;
-import serverSide.player.Player;
+import serverSide.player.ServerPlayer;
 
 import common.Link;
-import common.graphics.GraphicalPlayerStatus;
+import common.graphics.PlayerData;
 import common.modules.timerModule.MoverModule;
 import common.movement.Mover;
 import common.movement.MovingTask;
 import common.movement.RoughMovingTask;
 
-public class MapManagerMoverModule extends MoverModule<Player, MapManager, Void> {
-	
-	public MapManagerMoverModule(Map<Player, Mover<Player, MapManager>> map) {
+public class MapManagerMoverModule extends MoverModule<ServerPlayer, MapManager, Void> {
+
+	public MapManagerMoverModule(Map<ServerPlayer, Mover<ServerPlayer, MapManager>> map) {
 		super(map);
 	}
 
 	@Override
-	public void unregistered(Player forPlayer) {
+	public void unregistered(ServerPlayer forPlayer) {
 		// Check if the player has landed on a link to another map
 		Link link = parent.getMap().getOutgoingLink(forPlayer.getX(), forPlayer.getY());
 		if (link != null) {
@@ -55,18 +55,19 @@ public class MapManagerMoverModule extends MoverModule<Player, MapManager, Void>
 	}
 
 	@Override
-	public void started(Player player) {
+	public void started(ServerPlayer player) {
 		String playerName = player.getName();
-		GraphicalPlayerStatus status = player.getGraphicalPlayerStatus();
-		parent.playerModule.notifyAll(new MBChangeCharOrder(parent, playerName, status));
+		PlayerData playerData = player.getPlayerData();
+		parent.playerModule.notifyAll(new MBChangeCharOrder(parent, playerName, playerData));
 	}
 
 	@Override
-	public Mover<Player, MapManager> createCompleteModTimer(Player player, Void argument) {
-		if (!player.hasPath() || player.getPath().isEmpty())
+	public Mover<ServerPlayer, MapManager> createCompleteModTimer(ServerPlayer player, Void argument) {
+		if (!player.hasPath() || player.getPath().isEmpty()) {
 			return null;
-		Mover<Player, MapManager> mover = new Mover<Player, MapManager>(this, player, 500);//TODO: time unit
-		MovingTask<Player, MapManager> movingTask = new RoughMovingTask(mover, player);
+		}
+		Mover<ServerPlayer, MapManager> mover = new Mover<ServerPlayer, MapManager>(this, player, 500);//TODO: time unit
+		MovingTask<ServerPlayer, MapManager> movingTask = new RoughMovingTask(mover, player);
 		mover.setMovingTask(movingTask);
 		return mover;
 	}

@@ -19,6 +19,8 @@ class MyInputStream extends InputStream {
 		this.bytes = bos.toByteArray();
 	}
 	
+
+	@SuppressWarnings("deprecation")
 	@Override
 	public int read() throws IOException {
 		if (counter < bytes.length) {

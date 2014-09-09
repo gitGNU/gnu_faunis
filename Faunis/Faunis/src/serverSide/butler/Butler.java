@@ -1,17 +1,17 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -33,7 +33,7 @@ import serverSide.Account;
 import serverSide.MainServer;
 import serverSide.mapManager.MapManager;
 import serverSide.mapmanToButlerOrders.*;
-import serverSide.player.Player;
+import serverSide.player.ServerPlayer;
 import common.Logger;
 import common.clientToButlerOrders.CBOrder;
 import common.modules.ModuleOwner;
@@ -51,17 +51,17 @@ public class Butler implements ModuleOwner {
 	protected final ButlerServersideModule serversideWorker;
 	protected Account loggedAccount;	// account for which the client is currently logged in (may also be null)
 	protected MapManager activeMapman;
-	protected Player activePlayer;
+	protected ServerPlayer activePlayer;
 	protected final ButlerWorkerModule worker;
 	protected final MuxObjectInputStream mux;
-	
+
 	public Butler(MainServer parent, Socket clientSocket) {
 		this.parent = parent;
 		this.shutdownOccupied = new AtomicBoolean(false);
-		
+
 		this.clientsideWorker = new ButlerClientsideModule();
 		this.serversideWorker = new ButlerServersideModule();
-		
+
 		this.clientSocket = clientSocket;
 		// create input and output streams from clientSocket
 		Logger.log("Butler: Try to create input / output streams...");
@@ -85,11 +85,11 @@ public class Butler implements ModuleOwner {
 		);
 		this.worker = new ButlerWorkerModule(this.mux, workerThreadname);
 	}
-	
+
 	public void init() {
 		clientsideWorker.init(this);
 		serversideWorker.init(this);
-		
+
 		mux.addStreamExceptionListener(
 			new StreamExceptionListener() {
 				@Override
@@ -98,7 +98,7 @@ public class Butler implements ModuleOwner {
 					ObjectInputStream _stream, Exception exception
 				) {
 					Butler.this.shutdown();
-					// TODO: shutdown hangs if Butler thread is 
+					// TODO: shutdown hangs if Butler thread is
 					// waiting to read from mux!
 				}
 			}
@@ -114,12 +114,12 @@ public class Butler implements ModuleOwner {
 				}
 			}
 		);
-		
+
 		worker.init(this);
 		worker.start();
 	}
-	
-	
+
+
 	public boolean assertActivePlayer() {
 		if (activePlayer == null) {
 			clientsideWorker.sendErrorMessage("Command requires loaded player!");
@@ -127,8 +127,8 @@ public class Butler implements ModuleOwner {
 		}
 		return true;
 	}
-	
-	
+
+
 	public boolean assertLoggedAccount() {
 		if (loggedAccount == null) {
 			clientsideWorker.sendErrorMessage("Command requires logged account!");
@@ -136,19 +136,19 @@ public class Butler implements ModuleOwner {
 		}
 		return true;
 	}
-	
-	
+
+
 	public Socket getClientSocket() {
 		return clientSocket;
 	}
-	
+
 	public int getLocalPort() {
 		return clientSocket.getLocalPort();
 	}
-	
+
 	/** Shuts this butler down. Only one thread is allowed
 	 * to call this simultaneously. All others are rejected (returns false),
-	 * thus not blocked by calling this.<br/>
+	 * thus not blocked by calling this.<br />
 	 * Asserts that clientThread and serverThread terminate,
 	 * unless it isn't one of them that calls this method, in
 	 * which case only the termination of the other is asserted
@@ -159,22 +159,24 @@ public class Butler implements ModuleOwner {
 		if (shutdownOccupied.compareAndSet(false, true)) {
 			worker.stop();
 			// Save data, log out, unregister butler etc.
-			if (loggedAccount != null)
+			if (loggedAccount != null) {
 				clientsideWorker.logoutAccount();
+			}
 			parent.deleteButler(this);
 			return true;
-		} else
+		} else {
 			return false;
+		}
 	}
-	
+
 	public void put(MBOrder order) {
 		worker.put(order);
 	}
 
 	@Override
 	public String toString() {
-		return "Butler [socket=" + clientSocket.getLocalPort() + 
-				", account=" + loggedAccount.getName() + 
+		return "Butler [socket=" + clientSocket.getLocalPort() +
+				", account=" + loggedAccount.getName() +
 				", player=" + activePlayer.getName() + "]";
 	}
 }

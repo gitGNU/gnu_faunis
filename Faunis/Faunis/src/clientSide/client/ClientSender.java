@@ -1,17 +1,17 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -37,7 +37,6 @@ import clientSide.userToClientOrders.UCParseCommandOrder;
 import clientSide.userToClientOrders.UCQueryOwnPlayersOrder;
 import clientSide.userToClientOrders.UCServerSourceOrder;
 import clientSide.userToClientOrders.UCUnloadPlayerOrder;
-
 import common.HelperMethods;
 import common.Logger;
 import common.butlerToClientOrders.BCOrder;
@@ -51,23 +50,25 @@ import common.clientToButlerOrders.CBMoveOrder;
 import common.clientToButlerOrders.CBOrder;
 import common.clientToButlerOrders.CBQueryOwnPlayersOrder;
 import common.clientToButlerOrders.CBServerSourceOrder;
+import common.clientToButlerOrders.CBSetMoodOrder;
 import common.clientToButlerOrders.CBTriggerAnimationOrder;
 import common.clientToButlerOrders.CBUnloadPlayerOrder;
 import common.enums.ClientStatus;
 import common.enums.InventoryType;
+import common.enums.Mood;
 
 public class ClientSender {
 	private Client parent;
 	private ReentrantLock connectionModiMutexKey;
-	
-	
-	
+
+
+
 	public void init(Client _parent) {
 		this.parent = _parent;
 		this.connectionModiMutexKey = new ReentrantLock();
 	}
-	
-	
+
+
 	public void handleMessage(UCOrder order) {
 		if (order instanceof UCConnectOrder) {
 			connect();
@@ -98,9 +99,9 @@ public class ClientSender {
 			parent.logHelpInstructions();
 		}
 	}
-	
-	
-	
+
+
+
 	/** locks connectionModiMutexKey, clientStatusMutexKey */
 	public boolean connect() {
 		if (connectionModiMutexKey.tryLock()) {
@@ -121,7 +122,7 @@ public class ClientSender {
 					return false;
 				}
 				Logger.log("Socket created.");
-				
+
 				// create input and output stream:
 				Logger.log("Try to create input / output streams...");
 				try {
@@ -164,9 +165,9 @@ public class ClientSender {
 				try {
 					parent.socket.close();
 				} catch (IOException e) {
-					
+
 				}
-				
+
 				parent.receiverPart.unloadMap();
 
 				parent.setClientStatus(ClientStatus.disconnected);
@@ -182,10 +183,10 @@ public class ClientSender {
 			return false;
 		}
 	}
-	
-	
-	
-	/** locks clientStatusMutexKey, output<br/>
+
+
+
+	/** locks clientStatusMutexKey, output<br />
 	 *  Tries to send given ClientOrder to the own Butler, and returns
 	 *  the success thereof as a boolean.*/
 	public boolean sendOrder(CBOrder c){
@@ -203,9 +204,9 @@ public class ClientSender {
 		}
 		return true;
 	}
-	
-	
-	
+
+
+
 	boolean parseCommand(String command) {
 		String[] commandSplit = command.split(" ");
 		assert(commandSplit.length > 0);
@@ -214,7 +215,7 @@ public class ClientSender {
 		for (int i = 1; i < commandSplit.length; i++) {
 			commandSplitDetails[i-1] = commandSplit[i];
 		}
-		
+
 		ClientSettings s = parent.clientSettings;
 		if (commandPrefix.equals(s.commandPrefix()+s.connectCommand())) {
 			connect();
@@ -266,13 +267,30 @@ public class ClientSender {
 			}
 			sendOrder(new CBMoveOrder(walkX, walkY));
 			return true;
-		} else if (commandPrefix.equals(s.commandPrefix()+s.emoteCommand())) {
+		} else if (commandPrefix.equals(s.commandPrefix()+s.animationCommand())) {
 			String animationName = null;
 			if (commandSplitDetails.length >= 1) {
 				animationName = commandSplitDetails[0];
 			}
 			sendOrder(new CBTriggerAnimationOrder(animationName));
 			return true;
+		} else if (commandPrefix.equals(s.commandPrefix()+s.moodCommand())) {
+			String moodName = null;
+			if (commandSplitDetails.length == 1) {
+				moodName = commandSplitDetails[0];
+				Mood mood;
+				try {
+					mood = Mood.valueOf(moodName);
+				} catch(IllegalArgumentException e) {
+					parent.logErrorMessage("Invalid mood");
+					return false;
+				}
+				sendOrder(new CBSetMoodOrder(mood));
+				return true;
+			} else {
+				parent.logErrorMessage("Invalid number of arguments, expected one");
+				return false;
+			}
 		} else if (commandPrefix.equals(s.commandPrefix()+s.serverSourceCommand())) {
 			sendOrder(new CBServerSourceOrder());
 			return true;
@@ -283,7 +301,7 @@ public class ClientSender {
 			parent.logHelpInstructions();
 			return true;
 		}
-		
+
 		else if(commandPrefix.equals("/inv") && (commandSplitDetails.length == 4 || commandSplitDetails.length == 3 || commandSplitDetails.length == 1)){
 			if(commandSplitDetails[0].toUpperCase().equals("VIEW")){
 				sendOrder(new CBAccessInventoryOrder(InventoryType.VIEW, parent.activePlayerName));
@@ -317,12 +335,11 @@ public class ClientSender {
 			}
 			return true;
 		}
-		
+		// TODO: handle further commands
 		else {
 			parent.logErrorMessage("Command couldn't be interpreted.");
 			return false;
 		}
-		// TODO: handle further commands
 	}
 
 }

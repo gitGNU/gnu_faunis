@@ -1,17 +1,17 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -37,15 +37,15 @@ import serverSide.Account;
 import serverSide.Result;
 import serverSide.ServerSettings;
 import serverSide.archivist.AccountsArchivist;
-import serverSide.player.Player;
+import serverSide.player.ServerPlayer;
 
 public class FSAccountsArchivist implements AccountsArchivist {
 	private FileSystemArchivist parent;
-	
+
 	public FSAccountsArchivist(FileSystemArchivist parent) {
 		this.parent = parent;
 	}
-	
+
 	@Override
 	public Result<Boolean> createAccount(String name, String password){
 		// TODO: Synchronise on file system? Or else two accounts could be
@@ -68,7 +68,7 @@ public class FSAccountsArchivist implements AccountsArchivist {
 			return new Result<Boolean>(null, error);
 		}
 	}
-	
+
 	@Override
 	public boolean existAccount(String accountName) {
 		return existAccountSubdir(accountName);
@@ -79,7 +79,7 @@ public class FSAccountsArchivist implements AccountsArchivist {
 		Logger.log("Check if "+accountSubdir.getPath()+" exists...");
 		return (accountSubdir.exists() && accountSubdir.isDirectory());
 	}
-	
+
 	/** Creates the directory structure in the account directory for given account.
 	  * Returns true if successful, else false. */
 	private boolean createAccountSubdir(Account newAccount){
@@ -91,7 +91,9 @@ public class FSAccountsArchivist implements AccountsArchivist {
 		boolean check = false;
 		check = newAccountDir.mkdir();
 		check = check && newAccountPlayersDir.mkdir();
-		if (!check) return false;
+		if (!check) {
+			return false;
+		}
 		File newAccountFile = new File(accountPath+newAccountName+"/account.properties");
 		Properties newAccountProperties = new Properties();
 		newAccountProperties.setProperty("password", newAccountPassword);
@@ -103,33 +105,34 @@ public class FSAccountsArchivist implements AccountsArchivist {
 			e.printStackTrace();
 			return false;
 		} finally {
-			if (newAccountOutputStream != null)
+			if (newAccountOutputStream != null) {
 				try {
 					newAccountOutputStream.close();
 				} catch(IOException e) {
 					e.printStackTrace();
 					return false;
 				}
+			}
 		}
 		return true;
 	}
-	
-	
+
+
 	private String playerDirString(String accountName, String playerName) {
 		return parent.getAccountPath()+accountName+"/players/"+playerName;
 	}
-	
+
 	private boolean existPlayerDir(String accountName, String playerName){
 		File playerDir = new File(playerDirString(accountName, playerName));
 		return (playerDir.exists() && playerDir.isDirectory());
 	}
-	
+
 	private void createPlayerDir(String accountName, String playerName) {
 		assert(!existPlayerDir(accountName, playerName));
 		File playerDir = new File(playerDirString(accountName, playerName));
 		playerDir.mkdir();
 	}
-	
+
 	@Override
 	public HashSet<String> loadAllExistingPlayerNames() {
 		HashSet<String> result = new HashSet<String>();
@@ -140,14 +143,15 @@ public class FSAccountsArchivist implements AccountsArchivist {
 			File[] players = playersDir.listFiles(FileSystemArchivist.directoryFilter);
 			for (File player : players) {
 				boolean added = result.add(player.getName());
-				if (!added)
+				if (!added) {
 					Logger.log("ERROR: Couldn't add "+player.getName());
+				}
 			}
 		}
 		return result;
 	}
-	
-	/** Pure function. <br/>
+
+	/** Pure function. <br />
 	 * Loads an account from hard disk if exists and given login data is valid.
 	 * Additionally returns the loaded account if successful. */
 	@Override
@@ -158,14 +162,14 @@ public class FSAccountsArchivist implements AccountsArchivist {
 		}
 		String accountPath = parent.getAccountPath();
 		// read account.properties:
-		File accFile = new File(accountPath+name+"/account.properties");
-		Properties accProperties = new Properties();
+		File accountFile = new File(accountPath+name+"/account.properties");
+		Properties accountProperties = new Properties();
 		String readPassword;
 		FileInputStream accStream = null;
 		try {
-			accStream = new FileInputStream(accFile);
-			accProperties.load(accStream);
-			readPassword = accProperties.getProperty("password");
+			accStream = new FileInputStream(accountFile);
+			accountProperties.load(accStream);
+			readPassword = accountProperties.getProperty("password");
 		} catch (FileNotFoundException e) {
 			Logger.log("Couldn't find account.properties for "+name);
 			e.printStackTrace();
@@ -175,13 +179,14 @@ public class FSAccountsArchivist implements AccountsArchivist {
 			e.printStackTrace();
 			return new Result<Account>(null, "Error while reading account data!");
 		} finally {
-			if (accStream != null)
+			if (accStream != null) {
 				try {
 					accStream.close();
 				} catch (IOException e) {
 					e.printStackTrace();
 					return new Result<Account>(null, "Error while reading account data!");
 				}
+			}
 		}
 		// compare passwords
 		if (!password.equals(readPassword)){
@@ -195,11 +200,11 @@ public class FSAccountsArchivist implements AccountsArchivist {
 		  "players" will only be loaded when a player is activated;
 		  Here we will just collect the player names.
 		 */
-		File accPlayerDir = new File(accountPath+name+"/players/");
-		File[] accPlayers = accPlayerDir.listFiles();
+		File accountPlayersDir = new File(accountPath+name+"/players/");
+		File[] accountPlayerDirs = accountPlayersDir.listFiles();
 		ArrayList<String> playerNames = new ArrayList<String>();
-		for (File p : accPlayers){
-			playerNames.add(p.getName());
+		for (File accountPlayerDir : accountPlayerDirs){
+			playerNames.add(accountPlayerDir.getName());
 		}
 		// Finally create the account object:
 		Account acc = new Account(name, password, playerNames);
@@ -208,11 +213,12 @@ public class FSAccountsArchivist implements AccountsArchivist {
 	}
 
 	@Override
-	public boolean savePlayer(Player player) {
+	public boolean savePlayer(ServerPlayer player) {
 		synchronized(player) {
 			Path oldPath = player.getPath();
-			if (oldPath != null)
+			if (oldPath != null) {
 				throw new RuntimeException("MainServer.savePlayer(): Player was still moving!");
+			}
 			// It's bad if there's still a path referenced in the given player object:
 			// In no way may it be serialised with the player
 			player.resetPath();
@@ -221,8 +227,9 @@ public class FSAccountsArchivist implements AccountsArchivist {
 			String playerName = player.getName();
 			assert(existAccountSubdir(accountName));
 			String playerDirString = playerDirString(accountName, playerName);
-			if (!existPlayerDir(accountName, playerName))
+			if (!existPlayerDir(accountName, playerName)) {
 				createPlayerDir(accountName, playerName);
+			}
 			File playerFile = new File(playerDirString+"/"+playerName);
 			FileOutputStream fos = null;
 			try {
@@ -234,15 +241,17 @@ public class FSAccountsArchivist implements AccountsArchivist {
 				e.printStackTrace();
 				return false;
 			} finally {
-				if (oldPath != null)
+				if (oldPath != null) {
 					player.setPath(oldPath);
-				if (fos != null)
+				}
+				if (fos != null) {
 					try {
 						fos.close();
 					} catch (IOException e) {
 						e.printStackTrace();
 						return false;
 					}
+				}
 			}
 		}
 		Logger.log("MainServer: Player successfully saved.");
@@ -250,33 +259,34 @@ public class FSAccountsArchivist implements AccountsArchivist {
 	}
 
 	@Override
-	public Result<Player> loadAndActivatePlayer(Account account, String playerName) {
+	public Result<ServerPlayer> loadAndActivatePlayer(Account account, String playerName) {
 		if (account.getActivePlayer() != null) {
 			String error = "Couldn't load "+playerName+" since there's still another player active!";
-			return new Result<Player>(null, error);
+			return new Result<ServerPlayer>(null, error);
 		}
 		if (!account.getPlayerNames().contains(playerName)) {
 			String error = "Couldn't load "+playerName+" since a player of that name doesn't exist!";
-			return new Result<Player>(null, error);
+			return new Result<ServerPlayer>(null, error);
 		}
 		assert(this.existPlayerDir(account.getName(), playerName));
 		FileInputStream fis = null;
-		Player player = null;
+		ServerPlayer player = null;
 		try {
 			fis = new FileInputStream(playerDirString(account.getName(), playerName)+"/"+playerName);
 			ObjectInputStream ois = new ObjectInputStream(fis);
-			player = (Player) ois.readObject();
+			player = (ServerPlayer) ois.readObject();
 			ois.close();
 		} catch (IOException e) {
 			e.printStackTrace();
-			return new Result<Player>(null, "IOException");
+			return new Result<ServerPlayer>(null, "IOException");
 		} catch (ClassNotFoundException e) {
 			e.printStackTrace();
-			return new Result<Player>(null, "ClassNotFoundException");
+			return new Result<ServerPlayer>(null, "ClassNotFoundException");
 		} finally {
 			try {
-				if (fis != null)
+				if (fis != null) {
 					fis.close();
+				}
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -285,7 +295,7 @@ public class FSAccountsArchivist implements AccountsArchivist {
 		synchronized(account) {
 			account.setActivePlayer(player);
 		}
-		return new Result<Player>(player, null);
+		return new Result<ServerPlayer>(player, null);
 	}
 
 	@Override
@@ -294,7 +304,7 @@ public class FSAccountsArchivist implements AccountsArchivist {
 		String starterRegion = settings.starterRegion();
 		synchronized(parent.allExistingPlayerNames) {
 			synchronized(account) {
-				Player player;
+				ServerPlayer player;
 				String accountName = account.getName();
 				int maxPlayers = settings.maxPlayersPerAccount();
 				ArrayList<String> playerNames = account.getPlayerNames();
@@ -306,7 +316,7 @@ public class FSAccountsArchivist implements AccountsArchivist {
 					String error = "A player with the name "+playerName+" already exists!";
 					return new Result<Boolean>(null, error);
 				}
-				player = new Player(playerName, type, starterRegion, accountName);
+				player = new ServerPlayer(playerName, type, starterRegion, accountName);
 				boolean success = savePlayer(player);
 				if (success) {
 					playerNames.add(playerName);

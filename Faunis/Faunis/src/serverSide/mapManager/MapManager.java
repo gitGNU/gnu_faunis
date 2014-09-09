@@ -1,17 +1,17 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -25,11 +25,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import serverSide.MainServer;
 import serverSide.butler.Butler;
 import serverSide.butlerToMapmanOrders.BMOrder;
-import serverSide.player.Player;
+import serverSide.player.ServerPlayer;
 
 import common.Map;
 import common.MapInfo;
-import common.graphics.GraphicalPlayerStatus;
+import common.graphics.PlayerData;
 import common.modules.ModuleOwner;
 import common.movement.Mover;
 
@@ -39,59 +39,59 @@ import common.movement.Mover;
 public class MapManager implements ModuleOwner {
 	final MainServer parent;
 	private final Map map;
-	
-	final ConcurrentHashMap<Player, Butler> registeredPlayers;
-	final ConcurrentHashMap<String, Player> playerNameToPlayer;
-	final ConcurrentHashMap<Player, Mover<Player, MapManager>> movingPlayers;
+
+	final ConcurrentHashMap<ServerPlayer, Butler> registeredPlayers;
+	final ConcurrentHashMap<String, ServerPlayer> playerNameToPlayer;
+	final ConcurrentHashMap<ServerPlayer, Mover<ServerPlayer, MapManager>> movingPlayers;
 
 	final MapManagerPlayerModule playerModule;
 	final MapManagerMoverModule moverModule;
 	final MapManagerWorkerModule workerModule;
-	
+
 	public MapManager(MainServer parent, Map map) {
 		this.parent = parent;
 		this.map = map;
-		
-		this.registeredPlayers = new ConcurrentHashMap<Player, Butler>();
-		this.playerNameToPlayer = new ConcurrentHashMap<String, Player>();
-		this.movingPlayers = new ConcurrentHashMap<Player, Mover<Player, MapManager>>();
-		
+
+		this.registeredPlayers = new ConcurrentHashMap<ServerPlayer, Butler>();
+		this.playerNameToPlayer = new ConcurrentHashMap<String, ServerPlayer>();
+		this.movingPlayers = new ConcurrentHashMap<ServerPlayer, Mover<ServerPlayer, MapManager>>();
+
 		this.playerModule = new MapManagerPlayerModule(registeredPlayers);
 		this.moverModule = new MapManagerMoverModule(movingPlayers);
 		this.workerModule = new MapManagerWorkerModule(
 			new ArrayBlockingQueue<BMOrder>(50), map.getName()
 		);
 	}
-	
+
 	public void init()  {
 		playerModule.init(this);
 		moverModule.init(this);
 		workerModule.init(this);
 		workerModule.start();
 	}
-	
-	
+
+
 	public void put(BMOrder order) {
 		workerModule.put(order);
 	}
-	
-	
+
+
 	public Map getMap() {
 		return map;
 	}
-	
+
 	public String getMapName() {
 		return map.getName();
 	}
-	
-	
-	
+
+
+
 	/** locks registeredPlayers */
 	MapInfo getMapInfo() {
-		HashMap<String, GraphicalPlayerStatus> players = new HashMap<String, GraphicalPlayerStatus>();
-		for (Player player : registeredPlayers.keySet()) {
-			GraphicalPlayerStatus graphStatus = player.getGraphicalPlayerStatus();
-			players.put(player.getName(), graphStatus);
+		HashMap<String, PlayerData> players = new HashMap<String, PlayerData>();
+		for (ServerPlayer player : registeredPlayers.keySet()) {
+			PlayerData playerData = player.getPlayerData();
+			players.put(player.getName(), playerData);
 		}
 		return new MapInfo(map, players);
 	}

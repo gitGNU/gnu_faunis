@@ -1,17 +1,17 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -28,20 +28,21 @@ import serverSide.mapmanToButlerOrders.MBChangeCharOrder;
 import serverSide.mapmanToButlerOrders.MBMapInfoOrder;
 import serverSide.mapmanToButlerOrders.MBOrder;
 import serverSide.mapmanToButlerOrders.MBRemoveCharOrder;
-import serverSide.player.Player;
+import serverSide.player.ServerPlayer;
 import common.MapInfo;
-import common.graphics.GraphicalPlayerStatus;
+import common.enums.Mood;
+import common.graphics.PlayerData;
 import common.modules.objectModule.ObjectModule;
 
-public class MapManagerPlayerModule extends ObjectModule<Player, Butler, MapManager, BMRegisterOrder,
+public class MapManagerPlayerModule extends ObjectModule<ServerPlayer, Butler, MapManager, BMRegisterOrder,
 														 BMUnregisterOrder> {
 
-	public MapManagerPlayerModule(Map<Player, Butler> map) {
+	public MapManagerPlayerModule(Map<ServerPlayer, Butler> map) {
 		super(map);
 	}
 
 	@Override
-	public void added(Player player, Butler butler, BMRegisterOrder order) {
+	public void added(ServerPlayer player, Butler butler, BMRegisterOrder order) {
 		String playerName = player.getName();
 		Butler sourceButler = order.getSource();
 		assert(!player.hasPath());
@@ -56,11 +57,11 @@ public class MapManagerPlayerModule extends ObjectModule<Player, Butler, MapMana
 		sourceButler.put(new MBMapInfoOrder(parent, mapInfo));
 		// send information about the new player to all other butlers:
 		notifyAllExcept(new MBAddCharOrder(parent, playerName,
-				  		player.getGraphicalPlayerStatus()), sourceButler);
+				  		player.getPlayerData()), sourceButler);
 	}
 
 	@Override
-	public void beforeRemove(Player player, Butler butler, BMUnregisterOrder order) {
+	public void beforeRemove(ServerPlayer player, Butler butler, BMUnregisterOrder order) {
 		parent.moverModule.tryStop(player);
 		deleteAnimation(player);
 		String playerName = player.getName();
@@ -73,9 +74,8 @@ public class MapManagerPlayerModule extends ObjectModule<Player, Butler, MapMana
 		// inform every registered butler about the leave:
 		parent.playerModule.notifyAll(new MBRemoveCharOrder(parent, playerName));
 	}
-	
-	
-	/** locks registeredPlayers */
+
+
 	void notifyAll(MBOrder order) {
 		for (Butler butler : parent.registeredPlayers.values()) {
 			butler.put(order);
@@ -83,30 +83,33 @@ public class MapManagerPlayerModule extends ObjectModule<Player, Butler, MapMana
 	}
 	void notifyAllExcept(MBOrder order, Butler exclude) {
 		for (Butler butler : parent.registeredPlayers.values()) {
-			if (butler != exclude)
+			if (butler != exclude) {
 				butler.put(order);
+			}
 		}
 	}
-	
-	/** locks registeredPlayers, player */
-	void fireAnimation(Player player, String animation) {
-		GraphicalPlayerStatus status = player.getGraphicalPlayerStatus();
+
+	void fireAnimation(ServerPlayer player, String animation) {
+		PlayerData status = player.getPlayerData();
 		status.currentAnimation = animation;
 		notifyAll(new MBChangeCharOrder(parent, player.getName(), status));
 	}
 
-	/** locks registeredPlayers, player */
-	void deleteAnimation(Player player) {
+	void deleteAnimation(ServerPlayer player) {
 		if (player.getCurrentAnimation() != null) {
 			player.setCurrentAnimation(null);
-			notifyAll(new MBChangeCharOrder(parent, player.getName(), player.getGraphicalPlayerStatus()));
+			notifyAll(new MBChangeCharOrder(parent, player.getName(), player.getPlayerData()));
 		}
 	}
-	
-	/** locks registeredPlayers, player */
-	void storeAnimation(Player player, String animation) {
+
+	void storeAnimation(ServerPlayer player, String animation) {
 		player.setCurrentAnimation(animation);
-		notifyAll(new MBChangeCharOrder(parent, player.getName(), player.getGraphicalPlayerStatus()));
+		notifyAll(new MBChangeCharOrder(parent, player.getName(), player.getPlayerData()));
+	}
+	
+	void setMood(ServerPlayer player, Mood mood) {
+		player.setMood(mood);
+		notifyAll(new MBChangeCharOrder(parent, player.getName(), player.getPlayerData()));
 	}
 
 }

@@ -1,17 +1,17 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -27,14 +27,15 @@ public class HelperMethods {
 			String part = split[0];
 			String lowercaseRest = part.substring(1).toLowerCase();
 			char firstLetter = part.charAt(0);
-			if (capitaliseFirstLetter)
+			if (capitaliseFirstLetter) {
 				firstLetter = Character.toUpperCase(firstLetter);
-			else
+			} else {
 				firstLetter = Character.toLowerCase(firstLetter);
+			}
 			builder.append(firstLetter);
 			builder.append(lowercaseRest);
 		}
-		
+
 		for (int i = 1; i < split.length; i++) {
 			String part = split[i];
 			String lowercaseRest = part.substring(1).toLowerCase();
@@ -42,11 +43,11 @@ public class HelperMethods {
 			builder.append(firstLetter);
 			builder.append(lowercaseRest);
 		}
-		
+
 		return builder.toString();
 	}
-	
-	
+
+
 
 	public static String concatenateHelper(String[] array, int startIndex) {
 		assert(startIndex < array.length);
@@ -58,7 +59,7 @@ public class HelperMethods {
 		}
 		return message.toString();
 	}
-	
+
 	public static void sleep(long millisecs) {
 		try {
 			Thread.sleep(millisecs);

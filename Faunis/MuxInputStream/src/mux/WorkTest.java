@@ -46,13 +46,13 @@ public class WorkTest {
 			fail();
 		}
 		
-		MuxObjectInputStream mux = new MuxObjectInputStream(
+		MuxObjectInputStream myMux = new MuxObjectInputStream(
 			"mux", 32, false, streams, new Class[] {
 				String.class, String.class, String.class,
 				String.class, String.class
 			}, new BlockingQueue<?>[0], new Class<?>[0]
 		);
-		mux.addStreamCloseListener(new StreamCloseListener() {
+		myMux.addStreamCloseListener(new StreamCloseListener() {
 			@Override
 			public void onEvent(
 					MuxObjectInputStream mux, ObjectInputStream stream
@@ -60,7 +60,7 @@ public class WorkTest {
 				streamCloseNoticed = stream;
 			}
 		});
-		mux.addStreamExceptionListener(new StreamExceptionListener() {
+		myMux.addStreamExceptionListener(new StreamExceptionListener() {
 			@Override
 			public void onEvent(
 					MuxObjectInputStream mux, ObjectInputStream stream,
@@ -73,14 +73,14 @@ public class WorkTest {
 		long time = System.nanoTime();
 		while(System.nanoTime() - time < 500000000l) {
 			try {
-				String read = (String) mux.readObject();
+				String read = (String) myMux.readObject();
 				System.out.println(read);
 			} catch (IOException e) {
 				fail();
 			}
 		}
 		System.out.println("Closing stream 0 and 1");
-		mux.closeStream(streams[0]);
+		myMux.closeStream(streams[0]);
 		try {
 			streams[1].close();
 		} catch (IOException e1) {
@@ -90,7 +90,7 @@ public class WorkTest {
 		time = System.nanoTime();
 		while(System.nanoTime() - time < 500000000l) {
 			try {
-				String read = (String) mux.readObject();
+				String read = (String) myMux.readObject();
 				System.out.println(read);
 			} catch (IOException e) {
 				fail();
@@ -99,10 +99,10 @@ public class WorkTest {
 		assertEquals(streamCloseNoticed, streams[0]);
 		assertEquals(streamExceptionNoticed, streams[1]);
 		
-		mux.close();
+		myMux.close();
 		boolean thrown = false;
 		try {
-			mux.readObject();
+			myMux.readObject();
 		} catch(IOException e) {
 			assertEquals(e.getMessage(), "Stream Closed");
 			thrown = true;
@@ -127,14 +127,14 @@ public class WorkTest {
 			new RandomBlockingQueue(objects5, "queue u"),
 		};
 		
-		MuxObjectInputStream mux = new MuxObjectInputStream(
+		MuxObjectInputStream myMux = new MuxObjectInputStream(
 			"mux", 32, false, new ObjectInputStream[0], new Class[0],
 			queues, new Class[] {
 				String.class, String.class, String.class,
 				String.class, String.class
 			}
 		);
-		mux.addQueueCloseListener(new QueueCloseListener() {
+		myMux.addQueueCloseListener(new QueueCloseListener() {
 			@Override
 			public void onEvent(
 					MuxObjectInputStream mux, BlockingQueue<?> queue
@@ -142,7 +142,7 @@ public class WorkTest {
 				queueCloseNoticed = queue;
 			}
 		});
-		mux.addQueueExceptionListener(new QueueExceptionListener() {
+		myMux.addQueueExceptionListener(new QueueExceptionListener() {
 			@Override
 			public void onEvent(
 					MuxObjectInputStream mux, BlockingQueue<?> queue,
@@ -155,7 +155,7 @@ public class WorkTest {
 		long time = System.nanoTime();
 		while(System.nanoTime() - time < 500000000l) {
 			try {
-				String read = (String) mux.readObject();
+				String read = (String) myMux.readObject();
 				System.out.println(read);
 			} catch (IOException e) {
 				fail();
@@ -164,12 +164,12 @@ public class WorkTest {
 		System.out.println(
 			"Closing queue-thread 0, causing filter exception on queue 1"
 		);
-		mux.closeQueue(queues[0]);
+		myMux.closeQueue(queues[0]);
 		queues[1].setObjects(new Integer[] {new Integer(1)});
 		time = System.nanoTime();
 		while(System.nanoTime() - time < 500000000l) {
 			try {
-				String read = (String) mux.readObject();
+				String read = (String) myMux.readObject();
 				System.out.println(read);
 			} catch (IOException e) {
 				fail();
@@ -178,10 +178,10 @@ public class WorkTest {
 		assertEquals(queueCloseNoticed, queues[0]);
 		assertEquals(queueExceptionNoticed, queues[1]);
 		
-		mux.close();
+		myMux.close();
 		boolean thrown = false;
 		try {
-			mux.readObject();
+			myMux.readObject();
 		} catch(IOException e) {
 			assertEquals(e.getMessage(), "Stream Closed");
 			thrown = true;

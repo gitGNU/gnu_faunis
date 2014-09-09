@@ -7,8 +7,9 @@ public class WorkTest {
 
 	@Test
 	public void test() {
+		RandomObjectInputStream stream;
 		try {
-			RandomObjectInputStream stream = new RandomObjectInputStream(new Object[] {"aa", "ä", "âââ", "ææ"});
+			stream = new RandomObjectInputStream(new Object[] {"aa", "ä", "âââ", "ææ"});
 			while(true) {
 				Object x = stream.readObject();
 				System.out.println((String) x);

@@ -16,23 +16,24 @@
 # Public License along with Faunis. If not, see
 # <http://www.gnu.org/licenses/>.
 
+SRC_DIR=src/
+BIN_DIR=bin/
+
 MUX_DIR=./MuxInputStream/
-MUX_SRC=$(MUX_DIR)src/
-MUX_BIN=$(MUX_DIR)bin/
-
 FAUNIS_DIR=./Faunis/
-FAUNIS_SRC=$(FAUNIS_DIR)src/
-FAUNIS_BIN=$(FAUNIS_DIR)bin/
+TOOLS_DIR=./Tools/
 
-JAVAC_MUX = javac -sourcepath $(MUX_SRC) -classpath $(MUX_BIN):junit.jar -d $(MUX_BIN)
-JAVAC_FAUNIS = javac -sourcepath $(FAUNIS_SRC) -classpath $(FAUNIS_BIN):$(MUX_BIN) -d $(FAUNIS_BIN)
-JAVA = java -enableassertions -classpath $(FAUNIS_BIN):$(MUX_BIN)
+JAVAC_MUX = javac -sourcepath $(MUX_DIR)$(SRC_DIR) -classpath $(MUX_DIR)$(BIN_DIR):junit.jar -d $(MUX_DIR)$(BIN_DIR)
+JAVAC_FAUNIS = javac -sourcepath $(FAUNIS_DIR)$(SRC_DIR) -classpath $(FAUNIS_DIR)$(BIN_DIR):$(MUX_DIR)$(BIN_DIR):$(TOOLS_DIR)$(BIN_DIR) -d $(FAUNIS_DIR)$(BIN_DIR)
+JAVAC_TOOLS = javac -sourcepath $(TOOLS_DIR)$(SRC_DIR) -classpath $(TOOLS_DIR)$(BIN_DIR):$(MUX_DIR)$(BIN_DIR) -d $(TOOLS_DIR)$(BIN_DIR)
+JAVA = java -enableassertions -classpath $(FAUNIS_DIR)$(BIN_DIR):$(MUX_DIR)$(BIN_DIR):$(TOOLS_DIR)$(BIN_DIR)
 
 compile:
-	$(JAVAC_MUX) $(MUX_SRC)mux/MuxObjectInputStream.java
-	$(JAVAC_FAUNIS) $(FAUNIS_SRC)clientSide/client/Client.java
-	$(JAVAC_FAUNIS) $(FAUNIS_SRC)serverSide/MainServer.java
-	$(JAVAC_FAUNIS) $(FAUNIS_SRC)serverSide/tests/RobotMaster.java
+	$(JAVAC_MUX) $(MUX_DIR)$(SRC_DIR)mux/MuxObjectInputStream.java
+	$(JAVAC_TOOLS) $(TOOLS_DIR)$(SRC_DIR)tools/*.java
+	$(JAVAC_FAUNIS) $(FAUNIS_DIR)$(SRC_DIR)clientSide/client/Client.java
+	$(JAVAC_FAUNIS) $(FAUNIS_DIR)$(SRC_DIR)serverSide/MainServer.java
+	$(JAVAC_FAUNIS) $(FAUNIS_DIR)$(SRC_DIR)serverSide/tests/RobotMaster.java
 
 runClient:
 	$(JAVA) clientSide/client/Client
@@ -44,5 +45,6 @@ runRobots:
 	$(JAVA) serverSide/tests/RobotMaster
 
 clean:
-	rm -rf $(FAUNIS_BIN)*
-	rm -rf $(MUX_BIN)*
+	rm -rf $(FAUNIS_DIR)$(BIN_DIR)*
+	rm -rf $(MUX_DIR)$(BIN_DIR)*
+	rm -rf $(TOOLS_DIR)$(BIN_DIR)*

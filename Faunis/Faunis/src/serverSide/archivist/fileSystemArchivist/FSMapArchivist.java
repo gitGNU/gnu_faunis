@@ -1,17 +1,17 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -35,11 +35,11 @@ import common.graphics.GraphicalDecoStatus;
 
 
 public class FSMapArchivist implements MapArchivist {
-	
+
 	/** Please call loadAllMaps() afterwards. */
 	public FSMapArchivist() {
 	}
-	
+
 	/** Must be called after the FSMapArchivist is constructed. */
 	@Override
 	public java.util.Map<String, Map> loadAllMaps(String mapPath) {
@@ -57,7 +57,7 @@ public class FSMapArchivist implements MapArchivist {
 				line = reader.readLine();
 				reader.close();
 			} catch (Exception e) {
-				Logger.log("Could read settings file for map: "+mapName
+				Logger.log("Could not read settings file for map: "+mapName
 						+", reason: "+e.getMessage());
 				continue;
 			}
@@ -67,8 +67,9 @@ public class FSMapArchivist implements MapArchivist {
 						+", wrong number of arguments!");
 				continue;
 			}
-			for (int i = 0; i < arguments.length; i++)
+			for (int i = 0; i < arguments.length; i++) {
 				arguments[i] = arguments[i].trim();
+			}
 			int mapWidth, mapHeight;
 			try {
 				mapWidth = Integer.parseInt(arguments[0]);
@@ -94,9 +95,9 @@ public class FSMapArchivist implements MapArchivist {
 		}
 		return maps;
 	}
-	
-	
-	
+
+
+
 	private void loadMapCharsAndTranslationMap(int mapWidth, int mapHeight,
 												File file, char[][] mapChars,
 										HashMap<Character, String> translationMap) {
@@ -120,8 +121,9 @@ public class FSMapArchivist implements MapArchivist {
 			String translation = reader.readLine();
 			while (translation != null) {
 				String[] splitted = translation.split("=");
-				for (int i = 0; i < splitted.length; i++)
+				for (int i = 0; i < splitted.length; i++) {
 					splitted[i] = splitted[i].trim();
+				}
 				if (splitted.length != 2) {
 					Logger.log("loadMapCharsAndTranslationMap():"
 							+" Warning, translation line has unexpected number"
@@ -142,9 +144,9 @@ public class FSMapArchivist implements MapArchivist {
 			return;
 		}
 	}
-	
-	
-	
+
+
+
 	private ArrayList<GraphicalDecoStatus> loadDecoFile(int mapWidth, int mapHeight,
 															File decoFile) {
 		char[][] mapChars = new char[mapHeight][mapWidth];
@@ -167,9 +169,9 @@ public class FSMapArchivist implements MapArchivist {
 		}
 		return decoInfos;
 	}
-	
-	
-	
+
+
+
 	private ArrayList<Link> loadLinkFile(String sourceMap,
 			int mapWidth, int mapHeight, File linkFile) {
 		char[][] mapChars = new char[mapHeight][mapWidth];
@@ -185,11 +187,12 @@ public class FSMapArchivist implements MapArchivist {
 					String[] splitted = linkData.split(",");
 					if (splitted.length != 3) {
 						Logger.log("loadLinkFile(): Warning, unexpected number"
-								+ " of split parts");
+								+ " of arguments: " + linkData);
 						continue;
 					}
-					for (int i = 0; i < splitted.length; i++)
+					for (int i = 0; i < splitted.length; i++) {
 						splitted[i] = splitted[i].trim();
+					}
 					int sourceX = x;
 					int sourceY = y;
 					String targetMap = splitted[0];
@@ -201,8 +204,9 @@ public class FSMapArchivist implements MapArchivist {
 							targetType[i] = CoordinateType.UNCHANGED;
 						} else if (splitted[i].equals("+") || splitted[i].equals("-")) {
 							targetType[i] = CoordinateType.RELATIVE;
-							if (splitted[i].equals("+"))
+							if (splitted[i].equals("+")) {
 								splitted[i] = splitted[i].substring(1);
+							}
 							try {
 								targetCoordinate[i] = Integer.parseInt(splitted[i+1]);
 							} catch (NumberFormatException e) {
@@ -223,8 +227,9 @@ public class FSMapArchivist implements MapArchivist {
 							}
 						}
 					}
-					if (parseErrorOccurred)
+					if (parseErrorOccurred) {
 						continue;
+					}
 					Link link = new Link(sourceMap, sourceX, sourceY, targetMap,
 							targetCoordinate[0], targetCoordinate[1],
 							targetType[0], targetType[1]);

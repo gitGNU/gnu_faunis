@@ -1,17 +1,17 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -22,7 +22,7 @@ import java.awt.Point;
 
 import clientSide.ClientSettings;
 import clientSide.client.Client;
-import clientSide.player.PlayerGraphics;
+import clientSide.player.ClientPlayer;
 
 import common.enums.Direction;
 
@@ -31,9 +31,9 @@ import common.enums.Direction;
  * animation looks softer. Therefore it needs more (frequent) calls of move()
  * than RoughMovingTask, and the coordinates are not changed with every call.
 */
-public class SoftMovingTask extends MovingTask<PlayerGraphics, Client> {
+public class SoftMovingTask extends MovingTask<ClientPlayer, Client> {
 
-	public SoftMovingTask(Mover<PlayerGraphics, Client> parent, PlayerGraphics moveable) {
+	public SoftMovingTask(Mover<ClientPlayer, Client> parent, ClientPlayer moveable) {
 		super(parent, moveable);
 	}
 
@@ -45,46 +45,48 @@ public class SoftMovingTask extends MovingTask<PlayerGraphics, Client> {
 	@Override
 	protected void move() {
 		synchronized(runningMutexKey) {
-			if (stopRunning)
+			if (stopRunning) {
 				return;
-			PlayerGraphics playerGraphics = moveable;
-			assert(playerGraphics != null);
+			}
+			ClientPlayer player = moveable;
+			assert(player != null);
 			ClientSettings settings = parent.parent.parent().getClientSettings();
 			int deltaLevelAmplitude = settings.deltaLevelAmplitude();
-			Path path = playerGraphics.getPath();
+			Path path = player.getPath();
 			assert(path != null);
-			int deltaLevel = playerGraphics.getDeltaLevel();
+			int deltaLevel = player.getDeltaLevel();
 			Point nextPoint = path.top();
 			//Logger.log("deltaLevel="+deltaLevel+", nextPoint="+nextPoint);
 			assert(!(deltaLevel == 0 && nextPoint == null));
 			// We know where to go to,
 			// and we also know the deltaLevel
 			deltaLevel++;
-	
+
 			if (deltaLevel == 0) {
-				playerGraphics.setDeltaLevel(deltaLevel);
+				player.setDeltaLevel(deltaLevel);
 				// stop movement if there's no further waypoint
 				if (nextPoint == null) {
 					// stop movement
-//						playerGraphics.resetPath();
+//						player.resetPath();
 					return;
 				}
 			} else if (deltaLevel == 1) {
 				// adapt direction to next waypoint
 				Direction newDirection = MovingTask.deltaToDirection(
-						nextPoint.x-playerGraphics.getX(), nextPoint.y-playerGraphics.getY());
-				if (newDirection != null)
-					playerGraphics.setDirection(newDirection);
-				playerGraphics.setDeltaLevel(deltaLevel);
+						nextPoint.x-player.getX(), nextPoint.y-player.getY());
+				if (newDirection != null) {
+					player.setDirection(newDirection);
+				}
+				player.setDeltaLevel(deltaLevel);
 			} else if (deltaLevel > deltaLevelAmplitude) {
 				// move over to the next field and remove waypoint from path
 				deltaLevel = -deltaLevelAmplitude;
-				playerGraphics.setDeltaLevel(deltaLevel);
+				player.setDeltaLevel(deltaLevel);
 				assert(nextPoint != null);
-				playerGraphics.moveAbsolute(nextPoint.x, nextPoint.y, false);
+				player.moveAbsolute(nextPoint.x, nextPoint.y, false);
 				path.pop();
 			} else {
-				playerGraphics.setDeltaLevel(deltaLevel);
+				player.setDeltaLevel(deltaLevel);
 			}
 		}
 	}

@@ -76,7 +76,7 @@ public class RandomBlockingQueue implements BlockingQueue<Object> {
 	}
 
 	@Override
-	public Object[] toArray(Object[] a) {
+	public <T> T[] toArray(T[] a) {
 		throw new NotImplementedException();
 	}
 
@@ -160,5 +160,4 @@ public class RandomBlockingQueue implements BlockingQueue<Object> {
 	public int drainTo(Collection<? super Object> c, int maxElements) {
 		throw new NotImplementedException();
 	}
-
 }

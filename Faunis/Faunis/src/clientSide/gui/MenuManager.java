@@ -1,17 +1,17 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -21,6 +21,7 @@ package clientSide.gui;
 import java.awt.Component;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 
@@ -36,6 +37,7 @@ import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 
 import clientSide.client.Client;
+import clientSide.graphics.GuiGraphics;
 import clientSide.userToClientOrders.UCConnectOrder;
 import clientSide.userToClientOrders.UCCreatePlayerOrder;
 import clientSide.userToClientOrders.UCDisconnectOrder;
@@ -47,14 +49,15 @@ import clientSide.userToClientOrders.UCQueryOwnPlayersOrder;
 import clientSide.userToClientOrders.UCServerSourceOrder;
 import clientSide.userToClientOrders.UCUnloadPlayerOrder;
 import common.enums.ClientStatus;
+import common.graphics.osseous.NotFoundException;
 
 public class MenuManager {
 	public final JMenuBar menuBar;
-	
+
 	public final JMenu gameMenu;
 	public final JMenuItem settingsItem;
 	public final JMenuItem exitItem;
-	
+
 	public final JMenu statusMenu;
 	public final JMenuItem connectItem;
 	public final JMenuItem disconnectItem;
@@ -65,18 +68,21 @@ public class MenuManager {
 	public final JMenuItem queryOwnPlayersItem;
 	public final JMenuItem newPlayerItem;
 	
+	public final JMenu viewMenu;
+	public final double[] menuScaleFactors = {0.5, 1, 2};
+
 	public final JMenu helpMenu;
 	public final JMenuItem listCommandsItem;
 	public final JMenuItem queryServerSourceItem;
 	public final JMenuItem aboutItem;
-	
+
 	public MenuManager(final Client client) {
-		
+
 		settingsItem = new JMenuItem("Settings");
 		exitItem = new JMenuItem("Exit");
 		exitItem.addActionListener(new ActionListener() {
 			@Override
-			public void actionPerformed(ActionEvent e) {
+			public void actionPerformed(ActionEvent event) {
 				client.shutdown();
 			}
 		});
@@ -84,25 +90,25 @@ public class MenuManager {
 		gameMenu.setMnemonic('G');
 		gameMenu.add(settingsItem);
 		gameMenu.add(exitItem);
-		
+
 		connectItem = new JMenuItem("Connect");
 		connectItem.addActionListener(new ActionListener() {
 			@Override
-			public void actionPerformed(ActionEvent e) {
+			public void actionPerformed(ActionEvent event) {
 				client.putUCOrder(new UCConnectOrder());
 			}
 		});
 		disconnectItem = new JMenuItem("Disconnect");
 		disconnectItem.addActionListener(new ActionListener() {
 			@Override
-			public void actionPerformed(ActionEvent e) {
+			public void actionPerformed(ActionEvent event) {
 				client.putUCOrder(new UCDisconnectOrder());
 			}
 		});
 		loginItem = new JMenuItem("Log in");
 		loginItem.addActionListener(new ActionListener() {
 			@Override
-			public void actionPerformed(ActionEvent e) {
+			public void actionPerformed(ActionEvent event) {
 				// TODO: Create a custom dialog class from this, giving usernameField the focus
 				JPanel panel = new JPanel();
 				JTextField usernameField = new JTextField(12);
@@ -123,14 +129,14 @@ public class MenuManager {
 		logoutItem = new JMenuItem("Log out");
 		logoutItem.addActionListener(new ActionListener() {
 			@Override
-			public void actionPerformed(ActionEvent e) {
+			public void actionPerformed(ActionEvent event) {
 				client.putUCOrder(new UCLogoutOrder());
 			}
 		});
 		loadPlayerItem = new JMenuItem("Load player");
 		loadPlayerItem.addActionListener(new ActionListener() {
 			@Override
-			public void actionPerformed(ActionEvent e) {
+			public void actionPerformed(ActionEvent event) {
 				JPanel panel = new JPanel();
 				JTextField playernameField = new JTextField(12);
 				panel.add(new JLabel("Player name:"));
@@ -146,21 +152,21 @@ public class MenuManager {
 		unloadPlayerItem = new JMenuItem("Unload player");
 		unloadPlayerItem.addActionListener(new ActionListener() {
 			@Override
-			public void actionPerformed(ActionEvent e) {
+			public void actionPerformed(ActionEvent event) {
 				client.putUCOrder(new UCUnloadPlayerOrder());
 			}
 		});
 		queryOwnPlayersItem = new JMenuItem("Query own players");
 		queryOwnPlayersItem.addActionListener(new ActionListener() {
 			@Override
-			public void actionPerformed(ActionEvent e) {
+			public void actionPerformed(ActionEvent event) {
 				client.putUCOrder(new UCQueryOwnPlayersOrder());
 			}
 		});
 		newPlayerItem = new JMenuItem("Create new player");
 		newPlayerItem.addActionListener(new ActionListener() {
 			@Override
-			public void actionPerformed(ActionEvent e) {
+			public void actionPerformed(ActionEvent event) {
 				JPanel panel = new JPanel();
 				JTextField playernameField = new JTextField(12);
 				panel.add(new JLabel("New player name:"));
@@ -174,6 +180,18 @@ public class MenuManager {
 			}
 		});
 		
+		viewMenu = new JMenu("View");
+		for (final double scaleFactor : menuScaleFactors) {
+			JMenuItem scaleFactorItem = new JMenuItem(String.valueOf(scaleFactor));
+			scaleFactorItem.addActionListener(new ActionListener() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					client.getGameWindow().resizeToScaleFactor(scaleFactor);
+				}
+			});
+			viewMenu.add(scaleFactorItem);
+		}
+
 		statusMenu = new JMenu("Status");
 		statusMenu.setMnemonic('S');
 		statusMenu.add(connectItem);
@@ -186,11 +204,11 @@ public class MenuManager {
 		statusMenu.add(unloadPlayerItem);
 		statusMenu.add(queryOwnPlayersItem);
 		statusMenu.add(newPlayerItem);
-		
+
 		listCommandsItem = new JMenuItem("Instructions");
 		listCommandsItem.addActionListener(new ActionListener() {
 			@Override
-			public void actionPerformed(ActionEvent e) {
+			public void actionPerformed(ActionEvent event) {
 				new Thread(new Runnable() {
 					@Override
 					public void run() {
@@ -202,7 +220,7 @@ public class MenuManager {
 		queryServerSourceItem = new JMenuItem("Query server source");
 		queryServerSourceItem.addActionListener(new ActionListener() {
 			@Override
-			public void actionPerformed(ActionEvent e) {
+			public void actionPerformed(ActionEvent event) {
 				new Thread(new Runnable() {
 					@Override
 					public void run() {
@@ -214,10 +232,16 @@ public class MenuManager {
 		aboutItem = new JMenuItem("About Faunis");
 		aboutItem.addActionListener(new ActionListener() {
 			@Override
-			public void actionPerformed(ActionEvent e) {
-				ImageIcon aboutIcon = new ImageIcon(
-					client.getGraphicsContentManager().getGUIGraphics("about")
-				);
+			public void actionPerformed(ActionEvent event) {
+				ImageIcon aboutIcon;
+				try {
+					aboutIcon = client.getGraphicsContentManager(
+					).guiGraphicsContentManager().createImageIcon(new GuiGraphics("about"));
+				} catch (IOException exception) {
+					throw new RuntimeException(exception);
+				} catch (NotFoundException exception) {
+					throw new RuntimeException(exception);
+				}
 				JOptionPane.showMessageDialog(null, "Faunis - a furry MMORPG\n" +
 						"Copyright 2012 - 2014 Simon Ley alias \"skarute\"",
 						"About Faunis", JOptionPane.INFORMATION_MESSAGE, aboutIcon);
@@ -228,13 +252,14 @@ public class MenuManager {
 		helpMenu.add(listCommandsItem);
 		helpMenu.add(queryServerSourceItem);
 		helpMenu.add(aboutItem);
-		
+
 		menuBar = new JMenuBar();
 		menuBar.add(gameMenu);
 		menuBar.add(statusMenu);
+		menuBar.add(viewMenu);
 		menuBar.add(helpMenu);
 	}
-	
+
 	public void updateStatusMenu(final ClientStatus newStatus) {
 		switch(newStatus) {
 		case disconnected:
@@ -244,15 +269,23 @@ public class MenuManager {
 			statusMenuDisableAllBut(new JMenuItem[] {disconnectItem, loginItem});
 			break;
 		case noCharLoaded:
-			statusMenuDisableAllBut(new JMenuItem[] {disconnectItem, logoutItem, loadPlayerItem, queryOwnPlayersItem, newPlayerItem});
+			statusMenuDisableAllBut(
+				new JMenuItem[] {
+					disconnectItem, logoutItem, loadPlayerItem, queryOwnPlayersItem, newPlayerItem
+				}
+			);
 			break;
 		case exploring:
 		case fighting:
-			statusMenuDisableAllBut(new JMenuItem[] {disconnectItem, logoutItem, unloadPlayerItem, queryOwnPlayersItem, newPlayerItem});
+			statusMenuDisableAllBut(
+				new JMenuItem[] {
+					disconnectItem, logoutItem, unloadPlayerItem, queryOwnPlayersItem, newPlayerItem
+				}
+			);
 			break;
 		}
 	}
-	
+
 	protected void statusMenuDisableAllBut(JMenuItem[] toEnable) {
 		final HashSet<JMenuItem> toEnableSet = new HashSet<JMenuItem>();
 		Collections.addAll(toEnableSet, toEnable);
@@ -262,10 +295,11 @@ public class MenuManager {
 				for (Component component : statusMenu.getMenuComponents()) {
 					if (component instanceof JMenuItem) {
 						JMenuItem item = (JMenuItem) component;
-						if (toEnableSet.contains(item))
+						if (toEnableSet.contains(item)) {
 							item.setEnabled(true);
-						else
+						} else {
 							item.setEnabled(false);
+						}
 					}
 				}
 			}

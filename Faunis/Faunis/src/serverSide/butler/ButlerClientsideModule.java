@@ -1,17 +1,17 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -25,8 +25,9 @@ import serverSide.Result;
 import serverSide.butlerToMapmanOrders.BMChatMessageOrder;
 import serverSide.butlerToMapmanOrders.BMMoveOrder;
 import serverSide.butlerToMapmanOrders.BMOrder;
+import serverSide.butlerToMapmanOrders.BMSetMoodOrder;
 import serverSide.butlerToMapmanOrders.BMTriggerAnimationOrder;
-import serverSide.player.Player;
+import serverSide.player.ServerPlayer;
 import common.Logger;
 import common.butlerToClientOrders.*;
 import common.clientToButlerOrders.*;
@@ -36,18 +37,18 @@ import common.enums.ClientStatus;
 
 public class ButlerClientsideModule {
 	private Butler parent;
-	
+
 	@SuppressWarnings("hiding")
 	public void init(Butler parent) {
 		this.parent = parent;
 	}
 
-	
+
 	protected void notifyTermination() {
 		parent.shutdown();
 	}
 
-	
+
 	protected void handleMessage(CBOrder read) {
 		if (read instanceof CBCreatePlayerOrder) {
 			Logger.log("CBCreatePlayerOrder");
@@ -73,6 +74,9 @@ public class ButlerClientsideModule {
 		} else if (read instanceof CBTriggerAnimationOrder) {
 			Logger.log("CBTriggerAnimationOrder");
 			forwardAnimationOrder((CBTriggerAnimationOrder) read);
+		} else if (read instanceof CBSetMoodOrder) {
+			Logger.log("CBSetMoodOrder");
+			forwardMoodOrder((CBSetMoodOrder) read);
 		} else if (read instanceof CBServerSourceOrder) {
 			Logger.log("CBServerSourceOrder");
 			sendOrderToClient(new BCSystemMessageOrder(
@@ -93,12 +97,12 @@ public class ButlerClientsideModule {
 			Logger.log("Butler: Couldn't pass order to client!");
 		}
 	}
-	
+
 	/** locks mapmanMutexKey */
 	void sendOrderToMapman(BMOrder order) {
 		parent.activeMapman.put(order);
 	}
-	
+
 	void sendErrorMessage(String errorMessage) {
 		sendOrderToClient(new BCErrorMessageOrder(errorMessage));
 	}
@@ -118,22 +122,29 @@ public class ButlerClientsideModule {
 			sendErrorMessage("Butler: Couldn't log in since account seems to be already logged in.");
 		}
 	}
-	
+
 	public void createNewPlayer(CBCreatePlayerOrder order) {
-		if (!parent.assertLoggedAccount()) return;
+		if (!parent.assertLoggedAccount()) {
+			return;
+		}
 		Result<Boolean> result = parent.parent.createNewPlayer(parent.loggedAccount,
 									order.getPlayerName(), CharacterClass.ursine);
-		if (!result.successful())
+		if (!result.successful()) {
 			sendErrorMessage(result.getErrorMessage());
+		}
 	}
-	
+
 	public void moveChar(CBMoveOrder order) {
-		if (!parent.assertLoggedAccount()) return;
-		if (!parent.assertActivePlayer()) return;
+		if (!parent.assertLoggedAccount()) {
+			return;
+		}
+		if (!parent.assertActivePlayer()) {
+			return;
+		}
 		sendOrderToMapman(new BMMoveOrder(parent.activePlayer, parent, order));
 	}
-	
-	
+
+
 	void logoutAccount() {
 		if (parent.loggedAccount != null) {
 			if (parent.activePlayer != null) {
@@ -150,10 +161,14 @@ public class ButlerClientsideModule {
 			sendErrorMessage("Butler: Couldn't log out since there's no account logged in!");
 		}
 	}
-	
+
 	public void unloadActivePlayer() {
-		if (!parent.assertLoggedAccount()) return;
-		if (!parent.assertActivePlayer()) return;
+		if (!parent.assertLoggedAccount()) {
+			return;
+		}
+		if (!parent.assertActivePlayer()) {
+			return;
+		}
 		assert(parent.activeMapman != null);
 		parent.serversideWorker.removePlayerFromMapman(parent.activeMapman, false);
 		parent.parent.unloadPlayer(parent.activePlayer);
@@ -162,17 +177,17 @@ public class ButlerClientsideModule {
 		sendOrderToClient(new BCSetClientStatusOrder(ClientStatus.noCharLoaded));
 		Logger.log("Butler: Unloaded player.");
 	}
-	
-	
+
+
 	public void loadActivePlayer(CBLoadPlayerOrder order) {
-		if (!parent.assertLoggedAccount())
+		if (!parent.assertLoggedAccount()) {
 			return;
-		else if (parent.activePlayer != null) {
+		} else if (parent.activePlayer != null) {
 			sendErrorMessage("Butler: Couldn't load player: There's already one loaded.");
 			return;
 		}
 		String playerName = order.getPlayerName();
-		Result<Player> query = parent.parent.loadAndActivatePlayer(parent.loggedAccount, playerName);
+		Result<ServerPlayer> query = parent.parent.loadAndActivatePlayer(parent.loggedAccount, playerName);
 		if (!query.successful()) {
 			sendErrorMessage(query.getErrorMessage());
 			return;
@@ -190,17 +205,29 @@ public class ButlerClientsideModule {
 		sendOrderToClient(new BCSetClientStatusOrder(ClientStatus.exploring));
 		Logger.log("Butler: Player "+playerName+" successfully loaded.");
 	}
-	
-	
+
+
 	public void forwardChatOrder(CBChatOrder order) {
-		if (!parent.assertActivePlayer()) return;
+		if (!parent.assertActivePlayer()) {
+			return;
+		}
 		sendOrderToMapman(new BMChatMessageOrder(parent, order, parent.activePlayer.getName()));
 	}
 
-	
+
 	public void forwardAnimationOrder(CBTriggerAnimationOrder order) {
-		if (!parent.assertActivePlayer()) return;
+		if (!parent.assertActivePlayer()) {
+			return;
+		}
 		sendOrderToMapman(new BMTriggerAnimationOrder(parent, parent.activePlayer,
 				order.getAnimation()));
+	}
+	
+	
+	public void forwardMoodOrder(CBSetMoodOrder order) {
+		if (!parent.assertActivePlayer()) {
+			return;
+		}
+		sendOrderToMapman(new BMSetMoodOrder(parent, parent.activePlayer, order.getMood()));
 	}
 }

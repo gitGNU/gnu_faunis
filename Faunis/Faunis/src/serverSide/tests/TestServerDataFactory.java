@@ -1,17 +1,17 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -29,14 +29,14 @@ import java.util.Random;
 import common.enums.CharacterClass;
 
 import serverSide.ServerSettings;
-import serverSide.player.Player;
+import serverSide.player.ServerPlayer;
 
 public class TestServerDataFactory {
 	public static void createTestServerData(ServerSettings serverSettings, int accounts,
 											int playersPerAccount) {
 		String[] regions = new String[] {"nw-green", "ne-green", "sw-green", "se-green"};
 		Random random = new Random(5l);
-		
+
 		String accountsPath = serverSettings.accountPath();
 		assert(accountsPath.endsWith(File.separator));
 		for (int accountIndex = 0; accountIndex < accounts; accountIndex++) {
@@ -58,8 +58,9 @@ public class TestServerDataFactory {
 				return;
 			} finally {
 				try {
-					if (out != null)
+					if (out != null) {
 						out.close();
+					}
 				} catch (IOException e) {
 					e.printStackTrace();
 					return;
@@ -74,7 +75,7 @@ public class TestServerDataFactory {
 				String playerPath = playersPath+playerName+"/";
 				File playerDir = new File(playerPath);
 				playerDir.mkdir();
-				Player player = new Player(playerName, CharacterClass.ursine, region, accountName);
+				ServerPlayer player = new ServerPlayer(playerName, CharacterClass.ursine, region, accountName);
 				FileOutputStream playerFos = null;
 				ObjectOutputStream playerOos = null;
 				try {
@@ -89,8 +90,9 @@ public class TestServerDataFactory {
 					return;
 				} finally {
 					try {
-						if (playerFos != null)
+						if (playerFos != null) {
 							playerFos.close();
+						}
 					} catch (IOException e) {
 						e.printStackTrace();
 						return;

@@ -1,17 +1,17 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -27,11 +27,11 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class Path implements Serializable {
 	private static final long serialVersionUID = 1L;
 	ConcurrentLinkedQueue<Point> steps;
-	
+
 	public Path() {
 		steps = new ConcurrentLinkedQueue<Point>();
 	}
-	
+
 	/** deep copy */
 	public Path copy() {
 		Path result = new Path();
@@ -40,26 +40,26 @@ public class Path implements Serializable {
 		}
 		return result;
 	}
-	
+
 	public void push(Point step) {
 		steps.add(step);
 	}
-	
+
 	/** Removes the next waypoint from this path and returns it,
 	 * or returns null if this path is empty. */
 	public Point pop() {
 		return steps.poll();
 	}
-	
+
 	/** Returns the next waypoint or null if path is empty */
 	public Point top() {
 		return steps.peek();
 	}
-	
+
 	public boolean isEmpty() {
 		return steps.isEmpty();
 	}
-	
+
 	@Override
 	public String toString() {
 		StringBuilder stringBuilder = new StringBuilder();

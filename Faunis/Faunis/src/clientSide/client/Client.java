@@ -1,23 +1,24 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
  */
 package clientSide.client;
 
+import java.awt.Image;
 import java.awt.Point;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -30,26 +31,26 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import javax.swing.SwingUtilities;
 
+import tools.ConcurrentDupSortedMap;
 import listeners.StreamExceptionListener;
 import mux.MuxObjectInputStream;
 import clientSide.ClientSettings;
-import clientSide.ConcurrentDupSortedMap;
 import clientSide.MessageType;
 import clientSide.animation.Animator;
 import clientSide.archivist.ClientSettingsArchivist;
-import clientSide.graphics.Drawable;
+import clientSide.graphics.MapDrawable;
 import clientSide.graphics.ZOrderManager;
 import clientSide.gui.GameWindow;
-import clientSide.gui.GraphWin;
 import clientSide.gui.SwingMessageRunnable;
-import clientSide.player.PlayerGraphics;
+import clientSide.player.ClientPlayer;
 import clientSide.userToClientOrders.UCOrder;
 import common.Logger;
 import common.Map;
 import common.butlerToClientOrders.*;
 import common.clientToButlerOrders.*;
 import common.enums.ClientStatus;
-import common.graphics.GraphicsContentManager;
+import common.graphics.graphicsContentManager.GraphicsContentManager;
+import common.graphics.osseous.path.ClearPath;
 import common.modules.ModuleOwner;
 import common.movement.Mover;
 
@@ -61,42 +62,46 @@ public class Client implements ZOrderManager, ModuleOwner {
 	final ClientAnimatorModule animatorModule;
 	final ClientPlayerModule playerModule;
 	final ClientWorker worker;
-	
+
 	ObjectInputStream serverInput;
 	ObjectOutputStream serverOutput;
 	final ArrayBlockingQueue<UCOrder> userInput;
-	
+
 	final MuxObjectInputStream mux;
-	
+
 	final ClientSettingsArchivist clientSettingsArchivist;
 	final ClientSettings clientSettings;
-	
+
 	private ClientStatus clientStatus;
 	GraphicsContentManager graphicsContentManager;
 	Socket socket;
 	GameWindow win;
 	String activePlayerName;
 	Map currentMap;
-	
-	final ConcurrentHashMap<String, PlayerGraphics> currentPlayerGraphics;
-	final ConcurrentHashMap<PlayerGraphics, Mover<PlayerGraphics, Client>> movingPlayerGraphics;
-	final ConcurrentHashMap<PlayerGraphics, Animator<PlayerGraphics>> animatedPlayerGraphics;
-	final ConcurrentDupSortedMap<Float, Drawable> zOrderedDrawables;
-	
+
+	final ConcurrentHashMap<String, ClientPlayer> currentPlayers;
+	final ConcurrentHashMap<ClientPlayer, Mover<ClientPlayer, Client>> movingPlayers;
+	final ConcurrentHashMap<ClientPlayer, Animator<ClientPlayer>> animatedPlayers;
+	final ConcurrentDupSortedMap<Float, MapDrawable> zOrderedDrawables;
+
 	public static void main(String[] args){
 		Client client = new Client();
-		GameWindow window = new GameWindow(client, 800, 500, "Faunis");
+		GameWindow window = new GameWindow(client, 640, 480, "Faunis");
 		client.init(window);
 	}
-	
+
 	private void run(){
 		while(win != null){
-			GraphWin.delay(clientSettings.delayBetweenFrames());
+			try {
+				Thread.sleep(clientSettings.delayBetweenFrames());
+			} catch(InterruptedException e) {
+				e.printStackTrace();
+			}
 			win.draw();
 			win.repaint();
 		}
 	}
-	
+
 	public void putUCOrder(UCOrder order) {
 		try {
 			userInput.put(order);
@@ -104,21 +109,21 @@ public class Client implements ZOrderManager, ModuleOwner {
 			e.printStackTrace();
 		}
 	}
-	
+
 	public Client() {
 		this.userInput = new ArrayBlockingQueue<UCOrder>(16);
-		this.currentPlayerGraphics = new ConcurrentHashMap<String, PlayerGraphics>();
-		this.movingPlayerGraphics = new ConcurrentHashMap<PlayerGraphics, Mover<PlayerGraphics, Client>>();
-		this.animatedPlayerGraphics = new ConcurrentHashMap<PlayerGraphics, Animator<PlayerGraphics>>();
-		this.zOrderedDrawables = new ConcurrentDupSortedMap<Float, Drawable>();
+		this.currentPlayers = new ConcurrentHashMap<String, ClientPlayer>();
+		this.movingPlayers = new ConcurrentHashMap<ClientPlayer, Mover<ClientPlayer, Client>>();
+		this.animatedPlayers = new ConcurrentHashMap<ClientPlayer, Animator<ClientPlayer>>();
+		this.zOrderedDrawables = new ConcurrentDupSortedMap<Float, MapDrawable>();
 		clientSettingsArchivist = new ClientSettingsArchivist();
 		clientSettings = new ClientSettings(); // Settings that are read from hard disk are not
 											   // yet initialised and therefore can't be read yet
-		
+
 		this.mux = new MuxObjectInputStream(
 			"Client", 16, true, new ObjectInputStream[0], new Class[0],
 			new BlockingQueue[] {this.userInput}, new Class[] {UCOrder.class}
-		); 
+		);
 		mux.addStreamExceptionListener(new StreamExceptionListener() {
 			@Override
 			public void onEvent(
@@ -130,15 +135,15 @@ public class Client implements ZOrderManager, ModuleOwner {
 				Client.this.senderPart.disconnect();
 			}
 		});
-		
+
 		receiverPart = new ClientReceiver();
 		senderPart = new ClientSender();
-		moverModule = new ClientMoverModule(movingPlayerGraphics);
-		animatorModule = new ClientAnimatorModule(animatedPlayerGraphics);
-		playerModule = new ClientPlayerModule(currentPlayerGraphics);
+		moverModule = new ClientMoverModule(movingPlayers);
+		animatorModule = new ClientAnimatorModule(animatedPlayers);
+		playerModule = new ClientPlayerModule(currentPlayers);
 		worker = new ClientWorker(mux, "clientWorker");
 	}
-	
+
 	public void init(GameWindow window) {
 		receiverPart.init(this);
 		senderPart.init(this);
@@ -150,25 +155,30 @@ public class Client implements ZOrderManager, ModuleOwner {
 		// check if clientSettings paths exist:
 		clientSettings.checkPaths();
 		clientSettingsArchivist.readClientSettingsFromFile(clientSettings);
-		
+
 		// assign game window:
 		win = window;
+		
 		// set initial clientStatus:
 		clientStatus = ClientStatus.disconnected;
 		setClientStatus(clientStatus);
-		
-		if (win != null)
-			win.show();
-		
+
 		System.out.println(clientSettings.commandPrefix()+clientSettings.connectCommand());
 		logSystemMessage("Welcome to Faunis!");
 		logSystemMessage("Copyright 2012 - 2014 Simon Ley alias \"skarute\"");
 		logSystemMessage("Licensed under GNU AGPL v3 or later");
-		
-		// load data:
+
+		// if we have graphical output, set things up for it: 
 		if (win != null) {
 			graphicsContentManager = new GraphicsContentManager(clientSettings);
 			graphicsContentManager.loadResourcesForClient();
+			Image icon = null;
+			try {
+				icon = graphicsContentManager.guiGraphicsContentManager().image(new ClearPath("icon"));
+			} catch (Exception e) {
+			}
+			if (icon != null) { win.setIcon(icon); }
+			win.show();
 		}
 		worker.start();
 		senderPart.connect();
@@ -178,68 +188,71 @@ public class Client implements ZOrderManager, ModuleOwner {
 	public boolean hasGraphicalOutput() {
 		return win != null;
 	}
-	
+
 	public GameWindow getGameWindow() {
 		return win;
 	}
-	
-	public PlayerGraphics getPlayerGraphics(String name) {
-		return currentPlayerGraphics.get(name);
+
+	public ClientPlayer getPlayers(String name) {
+		return currentPlayers.get(name);
 	}
-	
+
 	public Map getCurrentMap() {
 		return currentMap;
 	}
-	
+
 	public String getCurrentMapName() {
-		if (currentMap != null)
+		if (currentMap != null) {
 			return currentMap.getName();
-		else
+		} else {
 			return null;
+		}
 	}
-	
+
 	public String getCurrentPlayerName() {
 		return activePlayerName;
 	}
-	
+
 	public ClientSettings getClientSettings() {
 		return clientSettings;
 	}
-	
+
 	public GraphicsContentManager getGraphicsContentManager() {
 		return graphicsContentManager;
 	}
-	
+
 	public ClientStatus getClientStatus() {
 		return clientStatus;
 	}
-	
+
 	// ################################################################################
 	// Client to server section: ######################################################
 	// ################################################################################
 
-	
-	public void mouseClick(Point point) {
-		Point field = clientSettings.pixelToMapField(point);
+
+	public void mouseClick(Point viewPoint) {
+		Point field = clientSettings.pixelToMapField(viewPoint);
 		senderPart.sendOrder(new CBMoveOrder(field.x, field.y));
 	}
-	
-	
+
+
 	// ###########################################################################################
 	// Server to client section: #################################################################
 	// ###########################################################################################
-		
+
 	public void showInventory(BCSendInventoryOrder order){
 		HashMap<Integer, Integer> hashmap = order.getPlayerItems();
-		if(hashmap.isEmpty()) logSystemMessage("You don't have any items on your inventory");
-		else{
+		if(hashmap.isEmpty()) {
+			logSystemMessage("You don't have any items on your inventory");
+		} else{
 			//new InventoryWindow(win, hashmap);
 		}
 	}
-	
+
 	public void showChatMessage(BCChatMessageOrder order) {
-		if (win == null)
+		if (win == null) {
 			return;
+		}
 		if (order.isBroadcast()) {
 			SwingUtilities.invokeLater(
 				new SwingMessageRunnable(order.getFromName()+": "
@@ -250,77 +263,84 @@ public class Client implements ZOrderManager, ModuleOwner {
 								+order.getMessage(), MessageType.whisper, win));
 		}
 	}
-	
+
 	public void logErrorMessage(BCErrorMessageOrder order) {
-		if (win == null)
+		if (win == null) {
 			return;
+		}
 		logErrorMessage(order.getMessage());
 	}
-	
+
 	public void logErrorMessage(String errorMessage) {
-		if (win == null)
+		if (win == null) {
 			return;
+		}
 		SwingUtilities.invokeLater(
 			new SwingMessageRunnable("ERROR: "+errorMessage, MessageType.error, win));
 	}
-	
+
 	public void logSystemMessage(BCSystemMessageOrder order) {
-		if (win == null)
+		if (win == null) {
 			return;
+		}
 		logSystemMessage(order.getMessage());
 	}
-	
+
 	public void logSystemMessage(String systemMessage) {
-		if (win == null)
+		if (win == null) {
 			return;
+		}
 		SwingUtilities.invokeLater(
 			new SwingMessageRunnable(systemMessage, MessageType.system, win));
 	}
-	
-	
+
+
 	// ################################################################################
 	// ################################################################################
 	// ################################################################################
-	
+
 
 
 	/** locks zOrderedDrawables */
 	@Override
-	public void notifyZOrderChange(Drawable drawable, float oldValue, float newValue) {
+	public void notifyZOrderChange(MapDrawable drawable, float oldValue, float newValue) {
 		Logger.log("notifyZOrderChange(): oldValue ="+oldValue+" newValue="+newValue);
 			boolean success = zOrderedDrawables.remove(drawable, oldValue);
 			assert(success);
 			zOrderedDrawables.add(drawable, newValue);
 	}
-	
+
 	/** locks zOrderedDrawables */
-	public ArrayList<Drawable> getAllDrawablesToDraw() {
-		ArrayList<Drawable> result = new ArrayList<Drawable>();
-		if (zOrderedDrawables == null) return result;
+	public ArrayList<MapDrawable> getAllDrawablesToDraw() {
+		ArrayList<MapDrawable> result = new ArrayList<MapDrawable>();
+		if (zOrderedDrawables == null) {
+			return result;
+		}
 		result = zOrderedDrawables.values();
 		return result;
 	}
 
 	@Override
-	public ConcurrentDupSortedMap<Float, Drawable> getZOrderedDrawables() {
+	public ConcurrentDupSortedMap<Float, MapDrawable> getZOrderedDrawables() {
 		return zOrderedDrawables;
 	}
-	
+
 	public void setClientStatus(ClientStatus newStatus) {
 		clientStatus = newStatus;
-		if (win != null)
+		if (win != null) {
 			win.notifyClientStatus(newStatus);
+		}
 	}
-	
-	/** locks connectionModiMutexKey, clientStatusMutexKey, currentPlayerGraphics, movingPlayerGraphics */
+
 	public void shutdown() {
 		senderPart.disconnect();
 		System.exit(0);
 	}
-	
+
 	public void logHelpInstructions() {
-		if (win == null)
+		if (win == null) {
 			return;
+		}
 		ClientSettings s = clientSettings;
 		String helpText =
 			"   I n s t r u c t i o n s\n"+
@@ -334,7 +354,7 @@ public class Client implements ZOrderManager, ModuleOwner {
 			"Load player: "+s.commandPrefix()+s.loadPlayerCommand()+" playername\n"+
 			"Unload player: "+s.commandPrefix()+s.unloadPlayerCommand()+"\n"+
 			"Get the server source (AGPL): "+s.commandPrefix()+s.serverSourceCommand()+"\n"+
-			"Trigger emote: "+s.commandPrefix()+s.emoteCommand()+" emotename\n"+
+			"Trigger animation: "+s.commandPrefix()+s.animationCommand()+" animationname\n"+
 			"Move around: "+s.commandPrefix()+s.moveCommand()+" x y\n"+
 			"Send private message (whisper): "+s.commandPrefix()+s.whisperCommand()+" playername message\n"+
 			"Broadcast message: "+s.commandPrefix()+s.broadcastCommand()+" message";

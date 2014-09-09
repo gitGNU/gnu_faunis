@@ -1,17 +1,17 @@
 /* Copyright 2012 - 2014 Simon Ley alias "skarute"
- * 
+ *
  * This file is part of Faunis.
- * 
+ *
  * Faunis is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * Faunis is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General
  * Public License along with Faunis. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -44,13 +44,13 @@ public class Robot implements Runnable {
 		"(They're watching us, everybody behave!)", "Burr needs some fooood!", "Hey!",
 		"*sniff* hmmm, smells good...", "Somebody in there?", "Where the fur am I going?",
 		"Do not tempt me!", "My tail is itching.", "I'm back", "Have to go - bye"};
-	
+
 	public Robot(String username, String[] playernames, Random random) {
 		this.username = username;
 		this.playernames = playernames;
 		this.random = random;
 	}
-	
+
 	@Override
 	public void run() {
 		client = new Client();
@@ -66,13 +66,14 @@ public class Robot implements Runnable {
 			randomAction();
 		}
 	}
-	
+
 	private void randomAction() {
 		if (clientStatus() != ClientStatus.exploring) {
-			if (random.nextBoolean())
+			if (random.nextBoolean()) {
 				increaseStatus(true);
-			else
+			} else {
 				decreaseStatus(true);
+			}
 		} else {
 			int rndInt = random.nextInt(doNothingPart+movePart+3)+1;
 			if (rndInt <= doNothingPart) {
@@ -84,98 +85,105 @@ public class Robot implements Runnable {
 				int y = random.nextInt(map.getHeight());
 				client.putUCOrder(new UCParseCommandOrder("/m "+x+" "+y));
 			}
-			else if (rndInt == doNothingPart+movePart+1)
+			else if (rndInt == doNothingPart+movePart+1) {
 				delay();
-				//client.parseCommand("/e", new String[]{"walk"}); // disabled for the presentation
-			else if (rndInt == doNothingPart+movePart+2)
+			} else if (rndInt == doNothingPart+movePart+2) {
 				client.putUCOrder(
 					new UCParseCommandOrder("/b "+chatMessages[random.nextInt(chatMessages.length)])
 				);
-			else if (rndInt == doNothingPart+movePart+3)
+			} else if (rndInt == doNothingPart+movePart+3) {
 				decreaseStatus(true);
+			}
 		}
 	}
-	
+
 	private void getToStatus(ClientStatus status) {
 		assert(status != ClientStatus.fighting);
 		while(status != clientStatus()) {
-			if (status.compareTo(clientStatus()) > 0)
+			if (status.compareTo(clientStatus()) > 0) {
 				increaseStatus(true);
-			else if (status.compareTo(clientStatus()) < 0)
+			} else if (status.compareTo(clientStatus()) < 0) {
 				decreaseStatus(true);
+			}
 		}
 	}
-	
+
 	private void decreaseStatus(boolean wait) {
 		switch(clientStatus()) {
 			case loggedOut:
-				if (!wait)
+				if (!wait) {
 					client.putUCOrder(new UCParseCommandOrder("/x"));
-				else
+				} else {
 					while (clientStatus() != ClientStatus.disconnected) {
 						client.putUCOrder(new UCParseCommandOrder("/x"));
 						delay();
 					}
+				}
 				break;
 			case noCharLoaded:
-				if (!wait)
+				if (!wait) {
 					client.putUCOrder(new UCParseCommandOrder("/o"));
-				else
+				} else {
 					while (clientStatus() != ClientStatus.loggedOut) {
 						client.putUCOrder(new UCParseCommandOrder("/o"));
 						delay();
 					}
+				}
 				break;
 			case fighting:
 			case exploring:
-				if (!wait)
+				if (!wait) {
 					client.putUCOrder(new UCParseCommandOrder("/u"));
-				else
+				} else {
 					while (clientStatus() != ClientStatus.noCharLoaded) {
 						client.putUCOrder(new UCParseCommandOrder("/u"));
 						delay();
 					}
+				}
 				break;
 			case disconnected:
 				break;
 		}
 	}
-	
+
 	private void increaseStatus(boolean wait) {
 		switch(clientStatus()) {
 			case disconnected:
-				if (!wait)
+				if (!wait) {
 					client.putUCOrder(new UCParseCommandOrder("/c"));
-				else
+				} else {
 					while (clientStatus() != ClientStatus.loggedOut) {
 						client.putUCOrder(new UCParseCommandOrder("/c"));
 						delay();
 					}
+				}
 				break;
 			case loggedOut:
-				if (!wait)
+				if (!wait) {
 					client.putUCOrder(new UCParseCommandOrder("/i "+username+" "+username));
-				else
+				} else {
 					while (clientStatus() != ClientStatus.noCharLoaded) {
 						client.putUCOrder(new UCParseCommandOrder("/i "+username+" "+username));
 						delay();
 					}
+				}
 				break;
 			case noCharLoaded:
-				if (!wait)
+				if (!wait) {
 					client.putUCOrder(new UCParseCommandOrder("/l "+playernames[0]));
-				else
+				} else {
 					while (clientStatus() != ClientStatus.exploring) {
 						client.putUCOrder(new UCParseCommandOrder("/l "+playernames[0]));
 						delay();
 					}
-				break;				
+				}
+				break;
 			case fighting:
 			case exploring:
 				break;
 		}
 	}
-	
+
 	private void delay() {
 		try {
 			Thread.sleep(delayMediumMs + (long) ((2*random.nextFloat()-1)*delayDeviationMs));
@@ -183,7 +191,7 @@ public class Robot implements Runnable {
 			e.printStackTrace();
 		}
 	}
-	
+
 	private ClientStatus clientStatus() {
 		return client.getClientStatus();
 	}
