@@ -29,6 +29,9 @@ JAVAC_TOOLS = javac -sourcepath $(TOOLS_DIR)$(SRC_DIR) -classpath $(TOOLS_DIR)$(
 JAVA = java -enableassertions -classpath $(FAUNIS_DIR)$(BIN_DIR):$(MUX_DIR)$(BIN_DIR):$(TOOLS_DIR)$(BIN_DIR)
 
 compile:
+	mkdir -p $(MUX_DIR)$(BIN_DIR)
+	mkdir -p $(TOOLS_DIR)$(BIN_DIR)
+	mkdir -p $(FAUNIS_DIR)$(BIN_DIR)
 	$(JAVAC_MUX) $(MUX_DIR)$(SRC_DIR)mux/MuxObjectInputStream.java
 	$(JAVAC_TOOLS) $(TOOLS_DIR)$(SRC_DIR)tools/*.java
 	$(JAVAC_FAUNIS) $(FAUNIS_DIR)$(SRC_DIR)clientSide/client/Client.java
